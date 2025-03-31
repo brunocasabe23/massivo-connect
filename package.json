@@ -1,0 +1,19 @@
+{
+  "name": "massivo-conect-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicación de gestión de compras y códigos presupuestales",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "start:backend": "npm start --workspace=backend"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
