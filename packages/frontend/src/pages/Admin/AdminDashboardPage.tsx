@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ChartPlaceholder from "@/components/dashboard/chart-placeholder"; // Ajustar ruta
 import ChartCard from "@/components/dashboard/chart-card"; // Ajustar ruta
 import { Link } from "react-router-dom"; // Importar Link de React Router
+import PermissionsDebug from "@/components/debug/PermissionsDebug"; // Importar componente de depuración
 
 // TODO: Definir estas interfaces globalmente o importarlas
 interface User {
@@ -265,6 +266,9 @@ export default function AdminDashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Componente de depuración - Solo para desarrollo */}
+      <PermissionsDebug />
     </div>
   );
 }

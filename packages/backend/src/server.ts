@@ -3,6 +3,7 @@ import dotenv from 'dotenv'; // Asegurarse de que dotenv se cargue primero
 import { testDbConnection } from './config/db'; // Importar la función de prueba
 import authRoutes from './routes/auth.routes'; // Importar rutas de autenticación
 import budgetRoutes from './routes/budget.routes'; // Importar rutas de códigos presupuestales
+import adminRoutes from './routes/admin.routes'; // Importar rutas de administración
 
 // Cargar variables de entorno (importante hacerlo antes de usar process.env)
 dotenv.config();
@@ -15,8 +16,9 @@ const PORT: number = parseInt(process.env.PORT || '5000', 10);
 app.use(express.json()); // Para parsear JSON bodies
 
 // Rutas de API
-app.use('/api/auth', authRoutes); 
+app.use('/api/auth', authRoutes);
 app.use('/api/budget-codes', budgetRoutes); // Montar rutas de códigos presupuestales
+app.use('/api/admin', adminRoutes); // Montar rutas de administración
 
 // Ruta de prueba raíz (opcional)
 app.get('/', (req: Request, res: Response) => {

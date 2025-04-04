@@ -39,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => { // Eliminado useEffect duplicado
     const storedToken = localStorage.getItem('authToken');
     const storedUser = localStorage.getItem('authUser');
+    console.log('[AuthContext] Loading from localStorage:', { storedToken, storedUser }); // <-- Añadir log
 
     if (storedToken && storedUser) {
       try {
@@ -57,9 +58,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Función de Login: guarda token y usuario (incluyendo rol y permisos) en estado y localStorage
   const login = (newToken: string, userData: User) => {
+    // Log de depuración para ver qué datos de usuario se reciben
+    console.log('[AuthContext] login() - userData recibido:', userData);
+    console.log('[AuthContext] login() - permisos recibidos:', userData.permisos);
+
     // Asegurarse que userData incluya 'rol' y 'permisos' que vienen de la API
     // Si permisos no viene, inicializar como array vacío por seguridad
     const completeUserData = { ...userData, permisos: userData.permisos || [] };
+
+    console.log('[AuthContext] login() - completeUserData:', completeUserData);
+
     setToken(newToken);
     setUser(completeUserData);
     localStorage.setItem('authToken', newToken);
@@ -88,7 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // No renderizar children hasta que termine la carga inicial del token
   if (isLoading) {
     // Puedes mostrar un spinner de carga aquí si lo deseas
-    return <div>Cargando...</div>; 
+    return <div>Cargando...</div>;
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

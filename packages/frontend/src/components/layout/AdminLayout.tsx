@@ -148,8 +148,12 @@ function MainSidebar() {
   const pathname = location.pathname;
   const { logout, permisos } = useAuth(); // Obtener logout y permisos
 
-  // Helper para verificar permisos
-  const hasPermission = (key: string) => permisos.includes(key);
+  // Helper para verificar permisos con log de depuración
+  const hasPermission = (key: string) => {
+    const has = permisos.includes(key);
+    console.log(`[MainSidebar] Verificando permiso '${key}': ${has ? 'SÍ' : 'NO'} (permisos: ${permisos.join(', ')})`);
+    return has;
+  };
 
   // Estados para controlar submenús abiertos
   // Inicializar basado en si la ruta actual incluye la base del submenú
