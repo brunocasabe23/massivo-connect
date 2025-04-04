@@ -16,7 +16,7 @@ Aplicación web para gestionar Órdenes de Compra (OC) y Códigos Presupuestales
     *   Librería: React
     *   Lenguaje: TypeScript
     *   Estilos: Tailwind CSS
-    *   Descripción: Interfaz de usuario interactiva integrada en una estructura multi-página.
+    *   Descripción: Interfaz de usuario interactiva integrada en una estructura multi-página.P
 *   **Base de Datos:** PostgreSQL
 *   **Autenticación:** JSON Web Tokens (JWT)
 

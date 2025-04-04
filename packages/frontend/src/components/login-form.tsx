@@ -74,6 +74,10 @@ export default function LoginForm() {
       // Asegúrate que la ruta '/auth/login' y el método 'POST' son correctos para tu API
       const response = await callApi('/auth/login', { method: 'POST', data })
 
+      // Log de depuración para ver qué devuelve la API
+      console.log('[LoginForm] Respuesta de login:', response);
+      console.log('[LoginForm] Permisos recibidos:', response.user?.permisos);
+
       login(response.token, response.user) // Usa el hook de AuthContext
       setIsSuccess(true)
       toast({

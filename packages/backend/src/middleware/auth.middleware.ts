@@ -31,7 +31,8 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
     }
 
     // Token válido, adjuntar payload del usuario a la solicitud
-    req.user = user; 
+    console.log('[AuthMiddleware] Token válido. Payload:', user); // Log del payload
+    req.user = user;
     next(); // Pasar al siguiente middleware o controlador
   });
 };

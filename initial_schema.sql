@@ -57,7 +57,7 @@ CREATE TABLE usuario_roles (
 CREATE TABLE rol_permisos (
     rol_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     permiso_id INTEGER NOT NULL REFERENCES permisos(id) ON DELETE CASCADE,
-    asignado BOOLEAN NOT NULL DEFAULT true,
+    asignado BOOLEAN NOT NULL DEFAULT true, -- Columna 'asignado' podría no ser necesaria si solo se insertan los asignados
     CONSTRAINT rol_permisos_pkey PRIMARY KEY (rol_id, permiso_id)
 );
 
@@ -120,6 +120,14 @@ CREATE TABLE notificaciones (
 
 -- Index para buscar notificaciones no leídas por usuario
 CREATE INDEX idx_notificaciones_usuario_leida ON notificaciones (usuario_id, leida);
+
+-- Tabla Usuario_Permisos_Directos (Relación Muchos-a-Muchos)
+CREATE TABLE usuario_permisos_directos (
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    permiso_id INTEGER NOT NULL REFERENCES permisos(id) ON DELETE CASCADE,
+    fecha_asignacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT usuario_permisos_directos_pkey PRIMARY KEY (usuario_id, permiso_id)
+);
 
 -- Mensaje final (opcional)
 -- SELECT 'Esquema inicial creado exitosamente.';

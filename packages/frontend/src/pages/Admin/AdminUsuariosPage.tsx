@@ -1,5 +1,5 @@
 // Eliminado "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Añadido useEffect
 import {
   Search,
   Filter,
@@ -36,19 +36,21 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton"; // Importar Skeleton
+import { callApi } from "@/services/api"; // Importar callApi
 
 // TODO: Definir estas interfaces globalmente o importarlas
 interface User {
   id: string;
   name: string;
   email: string;
-  role: string;
-  department: string;
-  status: string;
-  lastLogin: string;
-  createdAt: string;
-  avatar?: string;
-  initials: string;
+  role: string; // Viene de r.nombre
+  // department: string; // Columna no existe en la consulta SQL
+  status: string; // Viene de u.estado
+  // lastLogin: string; // Columna no existe en la consulta SQL
+  createdAt: string; // Viene de u.fecha_creacion
+  avatar?: string; // Viene de u.avatar_url
+  initials?: string; // Se generará en el frontend si avatar no existe
 }
 
 interface Role { // Añadida interfaz Role
@@ -64,18 +66,74 @@ interface Permission { // Añadida interfaz Permission
   description: string;
 }
 
+// Interfaz para agrupar permisos por categoría
+interface PermissionCategory {
+  name: string;
+  permissions: Permission[];
+}
 
 export default function AdminUsuariosPage() { // Nombre de componente cambiado
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | undefined>(undefined); // Estado para el rol seleccionado en el diálogo
+  const [selectedRolePermissions, setSelectedRolePermissions] = useState<Permission[]>([]); // Permisos heredados del ROL seleccionado
+  const [allPermissionsGrouped, setAllPermissionsGrouped] = useState<PermissionCategory[]>([]); // Todos los permisos disponibles, agrupados
+  const [directPermissionsSelection, setDirectPermissionsSelection] = useState<Record<string, boolean>>({}); // Estado para edición de permisos directos
+  const [loadingPermissions, setLoadingPermissions] = useState(false); // Estado de carga para permisos (rol y directos)
+  const [loadingAllPermissions, setLoadingAllPermissions] = useState(false); // Estado de carga para todos los permisos
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("todos");
+  const [usuarios, setUsuarios] = useState<User[]>([]); // Estado para usuarios de la API
+  const [rolesApi, setRolesApi] = useState<Role[]>([]); // Estado para roles de la API
+  const [loading, setLoading] = useState(true); // Estado de carga general (usuarios/roles iniciales)
+  const [error, setError] = useState<string | null>(null); // Estado de error general
 
-  // TODO: Reemplazar con llamada a API real usando callApi y useEffect/useCallback
-  // Datos de ejemplo
-  const users: User[] = [
+  useEffect(() => {
+    const fetchInitialData = async () => { // Renombrado
+      setLoading(true); // Carga general
+      setLoadingAllPermissions(true); // Carga de todos los permisos
+      setError(null);
+      try {
+        // Obtener usuarios, roles y TODOS los permisos en paralelo
+        const [usersResponse, rolesResponse, allPermissionsResponse] = await Promise.all([
+          callApi('/admin/users'),
+          callApi('/admin/roles'),
+          callApi('/admin/permissions') // Endpoint para obtener todos los permisos
+        ]);
+
+        // Procesar usuarios y roles
+        setUsuarios(Array.isArray(usersResponse) ? usersResponse : (usersResponse?.users && Array.isArray(usersResponse.users)) ? usersResponse.users : []);
+        setRolesApi(Array.isArray(rolesResponse) ? rolesResponse : (rolesResponse?.roles && Array.isArray(rolesResponse.roles)) ? rolesResponse.roles : []);
+
+        // Procesar y agrupar todos los permisos
+        const allPermissions: Permission[] = Array.isArray(allPermissionsResponse) ? allPermissionsResponse : [];
+        const grouped = allPermissions.reduce((acc: Record<string, PermissionCategory>, permission: Permission) => {
+            const category = permission.category || 'General'; // Usar categoría inferida o 'General'
+            if (!acc[category]) {
+              acc[category] = { name: category, permissions: [] };
+            }
+            acc[category].permissions.push(permission); // Guardar permiso completo
+            return acc;
+          }, {} as Record<string, PermissionCategory>);
+        setAllPermissionsGrouped(Object.values(grouped));
+
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Error al cargar datos iniciales';
+        setError(errorMessage);
+        console.error("Error fetching initial data:", err);
+      } finally {
+        setLoading(false);
+        setLoadingAllPermissions(false);
+      }
+    };
+
+    fetchInitialData();
+  }, []);
+
+  // Datos de ejemplo eliminados
+  /*
     {
       id: "USR-001",
       name: "Ana García",
@@ -172,38 +230,19 @@ export default function AdminUsuariosPage() { // Nombre de componente cambiado
       avatar: "",
       initials: "PH",
     },
-  ];
+  ]; */ // Fin de datos de ejemplo eliminados
 
-  const roles: Role[] = [ // Usar interfaz Role
-    { id: "ROL-001", name: "Administrador", permissions: 24 },
-    { id: "ROL-002", name: "Gerente", permissions: 18 },
-    { id: "ROL-003", name: "Supervisor", permissions: 12 },
-    { id: "ROL-004", name: "Contador", permissions: 10 },
-    { id: "ROL-005", name: "Analista", permissions: 8 },
-    { id: "ROL-006", name: "Usuario", permissions: 5 },
-  ];
+  // Eliminada la lista hardcodeada de roles
 
-  const permissions: Permission[] = [ // Usar interfaz Permission
-    { id: "PERM-001", name: "Ver usuarios", category: "Usuarios", description: "Permite ver la lista de usuarios" },
-    { id: "PERM-002", name: "Crear usuarios", category: "Usuarios", description: "Permite crear nuevos usuarios" },
-    { id: "PERM-003", name: "Editar usuarios", category: "Usuarios", description: "Permite editar usuarios existentes" },
-    { id: "PERM-004", name: "Eliminar usuarios", category: "Usuarios", description: "Permite eliminar usuarios" },
-    { id: "PERM-005", name: "Ver roles", category: "Roles", description: "Permite ver la lista de roles" },
-    { id: "PERM-006", name: "Crear roles", category: "Roles", description: "Permite crear nuevos roles" },
-    { id: "PERM-007", name: "Editar roles", category: "Roles", description: "Permite editar roles existentes" },
-    { id: "PERM-008", name: "Eliminar roles", category: "Roles", description: "Permite eliminar roles" },
-    { id: "PERM-009", name: "Ver compras", category: "Compras", description: "Permite ver la lista de compras" },
-    { id: "PERM-010", name: "Crear compras", category: "Compras", description: "Permite crear nuevas compras" },
-    { id: "PERM-011", name: "Aprobar compras", category: "Compras", description: "Permite aprobar compras" },
-    { id: "PERM-012", name: "Ver viáticos", category: "Viáticos", description: "Permite ver la lista de viáticos" },
-  ];
+  // Eliminada la lista hardcodeada de permisos
 
   // Filtrar usuarios según la pestaña activa y el término de búsqueda
-  const filteredUsers = users
+  const filteredUsers = usuarios // Cambiado de 'users' a 'usuarios' (estado)
     .filter((user) => {
       if (activeTab === "todos") return true;
       if (activeTab === "activos") return user.status === "Activo";
       if (activeTab === "inactivos") return user.status === "Inactivo";
+      // TODO: Ajustar el filtro si el rol viene con otro nombre/ID desde la API
       if (activeTab === "administradores") return user.role === "Administrador";
       return true;
     })
@@ -211,16 +250,73 @@ export default function AdminUsuariosPage() { // Nombre de componente cambiado
       (user) =>
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.department.toLowerCase().includes(searchTerm.toLowerCase())
+        user.role.toLowerCase().includes(searchTerm.toLowerCase()) // Eliminada la condición de department
+        // user.department.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-  const handleOpenRoleDialog = (user: User) => {
+  const fetchRolePermissions = async (roleId: string | undefined) => {
+    if (!roleId) {
+      setSelectedRolePermissions([]); // Limpiar permisos si no hay rol
+      return;
+    }
+    setLoadingPermissions(true);
+    try {
+      // Asegurarse que la API devuelve un array de Permisos
+      const permissionsData: Permission[] = await callApi(`/admin/roles/${roleId}/permissions`);
+      setSelectedRolePermissions(Array.isArray(permissionsData) ? permissionsData : []);
+    } catch (err) {
+      console.error(`Error fetching permissions for role ${roleId}:`, err);
+      setSelectedRolePermissions([]); // Limpiar en caso de error
+      // TODO: Mostrar error al usuario (ej: toast)
+      alert(`Error al cargar permisos para el rol: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+    } finally {
+      setLoadingPermissions(false);
+    }
+  };
+
+  const handleOpenRoleDialog = async (user: User) => { // Hacerla async
     setSelectedUser(user);
-    setIsRoleDialogOpen(true);
+    setIsRoleDialogOpen(true); // Abrir diálogo
+    setLoadingPermissions(true); // Iniciar carga de permisos
+    setDirectPermissionsSelection({}); // Limpiar selección anterior
+    setSelectedRolePermissions([]); // Limpiar permisos de rol anteriores
+
+    // Encontrar el ID del rol actual del usuario
+    const currentRoleId = rolesApi.find(r => r.name === user.role)?.id;
+    setSelectedRoleId(currentRoleId); // Establecer rol inicial
+
+    try {
+      // Cargar permisos del rol Y permisos directos en paralelo
+      const [rolePerms, directPerms] = await Promise.all([
+        currentRoleId ? callApi(`/admin/roles/${currentRoleId}/permissions`) : Promise.resolve([]), // Permisos del rol (si tiene rol)
+        callApi(`/admin/users/${user.id}/direct-permissions`) // Permisos directos del usuario
+      ]);
+
+      const safeRolePerms: Permission[] = Array.isArray(rolePerms) ? rolePerms : [];
+      const safeDirectPerms: Permission[] = Array.isArray(directPerms) ? directPerms : [];
+
+      setSelectedRolePermissions(safeRolePerms); // Guardar permisos del rol
+
+      // Inicializar el estado de selección de checkboxes
+      // Marcar los que vienen del rol Y los que son directos
+      const initialSelection: Record<string, boolean> = {};
+      safeRolePerms.forEach(p => initialSelection[p.id] = true);
+      safeDirectPerms.forEach(p => initialSelection[p.id] = true);
+      setDirectPermissionsSelection(initialSelection);
+
+    } catch (err) {
+      console.error(`Error fetching permissions for user ${user.id}:`, err);
+      alert(`Error al cargar permisos: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+      // Limpiar estados en caso de error
+      setSelectedRolePermissions([]);
+      setDirectPermissionsSelection({});
+    } finally {
+      setLoadingPermissions(false); // Terminar carga de permisos
+    }
   };
 
   const getRoleBadgeColor = (role: string) => {
+    // TODO: Ajustar los nombres de roles si son diferentes en la API
     switch (role) {
       case "Administrador": return "bg-red-100 text-red-800 border-red-300";
       case "Gerente": return "bg-blue-100 text-blue-800 border-blue-300";
@@ -232,12 +328,86 @@ export default function AdminUsuariosPage() { // Nombre de componente cambiado
   };
 
   const getStatusBadgeColor = (status: string) => {
+    // TODO: Ajustar los nombres de estados si son diferentes en la API
     return status === "Activo" ? "bg-green-100 text-green-800 border-green-300" : "bg-slate-100 text-slate-800 border-slate-300";
   };
 
   // TODO: Implementar lógica para Crear/Editar/Eliminar usuario usando callApi
   // TODO: Implementar lógica para Activar/Desactivar usuario usando callApi
   // TODO: Implementar lógica para Guardar cambios de rol/permisos usando callApi
+
+  const handleSaveRole = async () => {
+    if (!selectedUser || !selectedRoleId) {
+      // TODO: Mostrar un mensaje de error más amigable (ej: usando toast)
+      alert("Por favor, selecciona un usuario y un rol.");
+      return;
+    }
+
+    // TODO: Añadir un indicador de carga mientras se guarda
+    try {
+      await callApi(`/admin/users/${selectedUser.id}/role`, {
+        method: 'PUT',
+        data: { roleId: selectedRoleId }, // Enviar el ID del rol seleccionado
+      });
+
+      // Actualizar el rol del usuario en el estado local para reflejar el cambio inmediatamente
+      setUsuarios(prevUsuarios =>
+        prevUsuarios.map(user =>
+          user.id === selectedUser.id
+            ? { ...user, role: rolesApi.find(r => r.id === selectedRoleId)?.name || user.role } // Actualizar nombre del rol
+            : user
+        )
+      );
+
+      // TODO: Mostrar mensaje de éxito (ej: usando toast)
+      alert("Rol actualizado exitosamente.");
+      setIsRoleDialogOpen(false); // Cerrar el diálogo
+
+    } catch (err) {
+      // TODO: Mostrar mensaje de error (ej: usando toast)
+      alert(`Error al actualizar rol: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+      console.error("Error updating user role:", err);
+    } finally {
+      // TODO: Ocultar indicador de carga
+    }
+  };
+
+  const handleDirectPermissionChange = (permissionId: string, checked: boolean | string) => {
+    setDirectPermissionsSelection(prev => ({
+        ...prev,
+        [permissionId]: checked === true
+    }));
+  };
+
+  const handleSaveDirectPermissions = async () => {
+    if (!selectedUser) return;
+
+    // Obtener solo los IDs de los permisos que están marcados Y NO son heredados del rol
+    const directPermissionIdsToSave = Object.entries(directPermissionsSelection)
+      .filter(([id, isSelected]) => isSelected && !selectedRolePermissions.some(rp => rp.id === id))
+      .map(([id]) => id);
+
+    // TODO: Añadir indicador de carga
+    try {
+      await callApi(`/admin/users/${selectedUser.id}/direct-permissions`, {
+        method: 'PUT',
+        data: { permissionIds: directPermissionIdsToSave },
+      });
+
+      // TODO: Actualizar permisos en el contexto de autenticación si es necesario
+      // para que los cambios se reflejen inmediatamente en la UI protegida.
+      // Esto podría requerir una función en AuthContext para recargar datos del usuario.
+
+      alert(`Permisos directos para "${selectedUser.name}" actualizados.`);
+      setIsRoleDialogOpen(false); // Cerrar diálogo
+
+    } catch (err) {
+      alert(`Error al actualizar permisos directos: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+      console.error(`Error updating direct permissions for user ${selectedUser.id}:`, err);
+    } finally {
+      // TODO: Ocultar indicador de carga
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -296,7 +466,8 @@ export default function AdminUsuariosPage() { // Nombre de componente cambiado
                 <Select defaultValue="usuario"> {/* TODO: Conectar estado */}
                   <SelectTrigger className="col-span-2"><SelectValue placeholder="Seleccionar rol" /></SelectTrigger>
                   <SelectContent>
-                    {roles.map(role => <SelectItem key={role.id} value={role.name.toLowerCase()}>{role.name}</SelectItem>)}
+                    {/* Usar rolesApi del estado */}
+                    {rolesApi.map((role: Role) => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select defaultValue="activo"> {/* TODO: Conectar estado */}
@@ -351,20 +522,51 @@ export default function AdminUsuariosPage() { // Nombre de componente cambiado
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50">
-                  <TableHead className="w-12"><Checkbox /></TableHead><TableHead>Usuario</TableHead><TableHead>Correo</TableHead><TableHead>Rol</TableHead><TableHead>Departamento</TableHead><TableHead>Estado</TableHead><TableHead>Último acceso</TableHead><TableHead>Creado</TableHead><TableHead className="text-right">Acciones</TableHead>
+                  <TableHead className="w-12"><Checkbox /></TableHead><TableHead>Usuario</TableHead><TableHead>Correo</TableHead><TableHead>Rol</TableHead>{/* <TableHead>Departamento</TableHead> */}<TableHead>Estado</TableHead>{/* <TableHead>Último acceso</TableHead> */}<TableHead>Creado</TableHead><TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <TableRow key={user.id} className="hover:bg-slate-50 transition-colors">{/* Ensure no whitespace between TableCells */}
-                      <TableCell><Checkbox /></TableCell><TableCell><div className="flex items-center gap-3"><Avatar>{user.avatar ? <AvatarImage src={user.avatar} /> : <AvatarFallback className="bg-gradient-to-br from-blue-500 to-[#005291] text-white">{user.initials}</AvatarFallback>}</Avatar><div className="font-medium">{user.name}</div></div></TableCell><TableCell>{user.email}</TableCell><TableCell><Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge></TableCell><TableCell>{user.department}</TableCell><TableCell><Badge className={getStatusBadgeColor(user.status)}>{user.status}</Badge></TableCell><TableCell>{user.lastLogin}</TableCell><TableCell>{user.createdAt}</TableCell><TableCell className="text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem><Edit className="mr-2 h-4 w-4" />Editar</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenRoleDialog(user)}><ShieldCheck className="mr-2 h-4 w-4" />Gestionar permisos</DropdownMenuItem><DropdownMenuItem>{user.status === "Activo" ? (<span><UserX className="mr-2 h-4 w-4" />Desactivar</span>) : (<span><UserCheck className="mr-2 h-4 w-4" />Activar</span>)}</DropdownMenuItem><DropdownMenuItem className="text-red-500"><Trash className="mr-2 h-4 w-4" />Eliminar</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
+                {loading ? (
+                  // Mostrar Skeletons mientras carga
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow key={`loading-${index}`}>
+                      <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                     </TableRow>
                   ))
-                ) : (
+                ) : error ? (
+                  // Mostrar mensaje de error
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center"> {/* ColSpan debe coincidir con número de columnas (9) */}
-                      No se encontraron usuarios.
+                    <TableCell colSpan={9} className="h-24 text-center text-red-500">
+                      Error: {error}
+                    </TableCell>
+                  </TableRow>
+                ) : filteredUsers.length > 0 ? (
+                  // Mostrar usuarios filtrados
+                  filteredUsers.map((user) => {
+                    // Generar iniciales si no hay avatar y el nombre existe
+                    const initials = !user.avatar && user.name
+                      ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                      : '??';
+                    return (
+                      <TableRow key={user.id} className="hover:bg-slate-50 transition-colors">{/* Ensure no whitespace between TableCells */}
+                        <TableCell><Checkbox /></TableCell><TableCell><div className="flex items-center gap-3"><Avatar>{user.avatar ? <AvatarImage src={user.avatar} /> : <AvatarFallback className="bg-gradient-to-br from-blue-500 to-[#005291] text-white">{initials}</AvatarFallback>}</Avatar><div className="font-medium">{user.name}</div></div></TableCell><TableCell>{user.email}</TableCell><TableCell><Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge></TableCell>{/* <TableCell>{user.department}</TableCell> */}<TableCell><Badge className={getStatusBadgeColor(user.status)}>{user.status}</Badge></TableCell>{/* <TableCell>{user.lastLogin}</TableCell> */}<TableCell>{user.createdAt}</TableCell><TableCell className="text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem><Edit className="mr-2 h-4 w-4" />Editar</DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenRoleDialog(user)}><ShieldCheck className="mr-2 h-4 w-4" />Gestionar permisos</DropdownMenuItem><DropdownMenuItem>{user.status === "Activo" ? (<span><UserX className="mr-2 h-4 w-4" />Desactivar</span>) : (<span><UserCheck className="mr-2 h-4 w-4" />Activar</span>)}</DropdownMenuItem><DropdownMenuItem className="text-red-500"><Trash className="mr-2 h-4 w-4" />Eliminar</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  // Mostrar mensaje si no hay usuarios y no hay error/carga
+                  <TableRow>
+                    {/* Ajustar colSpan a 7 (9 - 2 columnas eliminadas) */}
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      No se encontraron usuarios que coincidan con los filtros.
                     </TableCell>
                   </TableRow>
                 )}
@@ -385,39 +587,75 @@ export default function AdminUsuariosPage() { // Nombre de componente cambiado
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-medium">Rol actual: {selectedUser?.role}</h3>
-              <Select defaultValue={selectedUser?.role.toLowerCase()}> {/* TODO: Connect state/logic */}
+              <h3 className="text-sm font-medium">Rol actual: {selectedUser?.role || 'Ninguno'}</h3>
+              {/* Conectar Select al estado selectedRoleId */}
+              <Select
+                value={selectedRoleId} // Usar el estado para el valor
+                onValueChange={(value) => {
+                  setSelectedRoleId(value); // Actualizar estado del ID seleccionado
+                  fetchRolePermissions(value); // Cargar permisos para el nuevo rol
+                }}
+              >
                 <SelectTrigger className="w-60"><SelectValue placeholder="Seleccionar rol" /></SelectTrigger>
                 <SelectContent>
-                  {roles.map((role) => <SelectItem key={role.id} value={role.name.toLowerCase()}>{role.name} ({role.permissions} permisos)</SelectItem>)}
+                  {/* Usar rolesApi del estado */}
+                  {rolesApi.map((role: Role) => <SelectItem key={role.id} value={role.id}>{role.name} ({role.permissions} permisos)</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="mt-4">
-              <h3 className="text-sm font-medium mb-2">Permisos del rol</h3>
+              <h3 className="text-sm font-medium mb-2">Permisos (Heredados y Directos)</h3>
               <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
-                {permissions.map((permission) => {
-                  // TODO: Determine actual checked state based on selected role/user permissions
-                  const isChecked = permission.category === "Usuarios"; // Example logic
-                  return (
-                    <div key={permission.id} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <Checkbox id={permission.id} checked={isChecked} disabled /> {/* Disabled for now */}
-                        <div>
-                          <Label htmlFor={permission.id} className="font-medium">{permission.name}</Label>
-                          <p className="text-xs text-slate-500">{permission.description}</p>
-                        </div>
+                {loadingAllPermissions || loadingPermissions ? ( // Mostrar skeleton si carga todos o los específicos
+                  <div className="p-4 space-y-3">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-5 w-1/2" />
+                    <Skeleton className="h-5 w-3/4" />
+                  </div>
+                ) : allPermissionsGrouped.length > 0 ? (
+                  // Iterar sobre TODOS los permisos disponibles, agrupados por categoría
+                  allPermissionsGrouped.map((category) => (
+                    <div key={category.name} className="p-3">
+                      <h4 className="font-medium text-sm mb-2">{category.name}</h4>
+                      <div className="pl-2 space-y-2">
+                        {category.permissions.map((permission) => {
+                          const isInherited = selectedRolePermissions.some(rp => rp.id === permission.id);
+                          const isChecked = directPermissionsSelection[permission.id] || false;
+                          return (
+                            <div key={permission.id} className="flex items-center gap-2">
+                              <Checkbox
+                                id={`direct-${permission.id}`}
+                                checked={isChecked}
+                                disabled={isInherited} // Deshabilitar si es heredado del rol
+                                onCheckedChange={(checked) => handleDirectPermissionChange(permission.id, checked)}
+                              />
+                              <div>
+                                <Label htmlFor={`direct-${permission.id}`} className={`font-medium text-sm ${isInherited ? 'text-slate-500 italic' : ''}`}>
+                                  {permission.name} {isInherited && `(Heredado de rol: ${selectedUser?.role})`}
+                                </Label>
+                                <p className={`text-xs ${isInherited ? 'text-slate-400' : 'text-slate-500'}`}>{permission.description}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <Badge className="bg-slate-100 text-slate-800">{permission.category}</Badge>
                     </div>
-                  );
-                })}
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-sm text-slate-500">
+                    No hay permisos definidos en el sistema.
+                  </div>
+                )}
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRoleDialogOpen(false)}>Cancelar</Button>
-            <Button className="bg-[#005291]" onClick={() => { setIsRoleDialogOpen(false); /* TODO: Add save logic */ }}><Save className="mr-2 h-4 w-4" />Guardar Cambios</Button>
+            {/* Este botón ahora guarda tanto el rol seleccionado como los permisos directos */}
+            <Button className="bg-[#005291]" onClick={async () => {
+                await handleSaveRole();
+                await handleSaveDirectPermissions();
+              }}><Save className="mr-2 h-4 w-4" />Guardar Cambios</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

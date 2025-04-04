@@ -26,22 +26,27 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Si se especificaron roles permitidos y el usuario no tiene uno de ellos
-  if (allowedRoles && (!user?.rol || !allowedRoles.includes(user.rol))) {
-    // Redirigir a una página no autorizada o al dashboard principal
-    // TODO: Considerar crear una página /unauthorized específica
-    console.warn(`Acceso no autorizado a ${location.pathname} para el rol: ${user?.rol}`);
-    return <Navigate to="/dashboard" replace />; // Redirige a dashboard por ahora
+  // --- Verificaciones de Autorización (Solo si se especifican) ---
+
+  // Verificar Rol (SOLO si se pasa allowedRoles)
+  if (allowedRoles && allowedRoles.length > 0) {
+    if (!user?.rol || !allowedRoles.includes(user.rol)) {
+      console.warn(`Acceso no autorizado a ${location.pathname} para el rol: ${user?.rol}. Roles permitidos: ${allowedRoles.join(', ')}`);
+      // Redirigir a una página 'no autorizado' o a un dashboard seguro
+      return <Navigate to="/unauthorized" state={{ from: location }} replace />; // TODO: Crear ruta /unauthorized
+    }
   }
 
-  // Si se especificó un permiso requerido y el usuario no lo tiene
-  if (requiredPermission && !permisos.includes(requiredPermission)) {
-    // Redirigir a una página no autorizada o al dashboard principal
-    console.warn(`Acceso no autorizado a ${location.pathname}. Permiso requerido: ${requiredPermission}`);
-    return <Navigate to="/dashboard" replace />; // Redirige a dashboard por ahora
+  // Verificar Permiso (SOLO si se pasa requiredPermission)
+  if (requiredPermission) {
+    if (!permisos.includes(requiredPermission)) {
+      console.warn(`Acceso no autorizado a ${location.pathname}. Permiso requerido: ${requiredPermission}. Permisos del usuario: ${permisos.join(', ')}`);
+      // Redirigir a una página 'no autorizado' o a un dashboard seguro
+      return <Navigate to="/unauthorized" state={{ from: location }} replace />; // TODO: Crear ruta /unauthorized
+    }
   }
 
-  // Si está autenticado y tiene el rol/permiso permitido (o no se requieren)
+  // Si pasó la autenticación y las verificaciones de autorización (o no se aplicaron), renderizar contenido
   return children;
 };
 
