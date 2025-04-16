@@ -1,9 +1,20 @@
-import { Request, Response } from 'express';
+// import { Request, Response } from 'express';
+import bcrypt from 'bcrypt'; // Importar bcrypt
 import pool from '../config/db';
 import { PoolClient, QueryResult } from 'pg';
+import { registerActivity } from '../services/activity.service';
+// import { AuthenticatedRequest } from '../request'; // Importar interfaz extendida
 
+// Usar any para evitar problemas de tipos
+type Response = any;
+type AuthenticatedRequest = any;
+type Request = any;
+
+const SALT_ROUNDS = 10; // Definir SALT_ROUNDS
+// Eliminar importación duplicada
+// Eliminar esta línea duplicada
 // --- Controlador para obtener todos los usuarios ---
-export const getAllUsers = async (req: Request, res: Response): Promise<Response> => {
+export const getAllUsers = async (req: Request, res: Response): Promise<Response> => { // Usar Request estándar
   let client: PoolClient | null = null;
   try {
     client = await pool.connect();
@@ -15,15 +26,18 @@ export const getAllUsers = async (req: Request, res: Response): Promise<Response
         u.nombre AS name,
         u.email,
         r.nombre AS role,
+        ur.rol_id, -- Añadir rol_id
         -- u.departamento AS department, -- Columna no existe en el esquema
         u.estado AS status,
         -- u.ultimo_login AS "lastLogin", -- Columna no existe en el esquema
         u.fecha_creacion AS "createdAt", -- No necesita comillas
-        u.avatar_url AS avatar -- Usar avatar_url
-        -- 'initials' se generará en el frontend si es necesario
+        u.avatar_url AS avatar,
+        u.area_id, -- Añadir area_id
+        a.nombre AS area_nombre -- Añadir nombre del área
       FROM usuarios u
       LEFT JOIN usuario_roles ur ON u.id = ur.usuario_id
       LEFT JOIN roles r ON ur.rol_id = r.id
+      LEFT JOIN areas a ON u.area_id = a.id -- Añadir JOIN con areas
       ORDER BY u.fecha_creacion DESC;
     `;
 
@@ -41,7 +55,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<Response
 };
 
 // --- Controlador para obtener todos los roles ---
-export const getAllRoles = async (req: Request, res: Response): Promise<Response> => {
+export const getAllRoles = async (req: Request, res: Response): Promise<Response> => { // Usar Request estándar
   let client: PoolClient | null = null;
   try {
     client = await pool.connect();
@@ -77,7 +91,7 @@ export const getAllRoles = async (req: Request, res: Response): Promise<Response
 };
 
 // --- Controlador para obtener todos los permisos ---
-export const getAllPermissions = async (req: Request, res: Response): Promise<Response> => {
+export const getAllPermissions = async (req: Request, res: Response): Promise<Response> => { // Usar Request estándar
   let client: PoolClient | null = null;
   try {
     client = await pool.connect();
@@ -121,7 +135,7 @@ export const getAllPermissions = async (req: Request, res: Response): Promise<Re
 };
 
 // --- Controlador para crear un nuevo rol ---
-export const createRole = async (req: Request, res: Response): Promise<Response> => {
+export const createRole = async (req: AuthenticatedRequest, res: Response): Promise<Response> => { // Usar AuthenticatedRequest (para req.user.id)
   // Añadir 'description' a la desestructuración
   const { name, description, permissionIds } = req.body;
 
@@ -166,6 +180,19 @@ export const createRole = async (req: Request, res: Response): Promise<Response>
 
     await client.query('COMMIT'); // Confirmar transacción
 
+    // Registrar la actividad de creación de rol
+    if (req.user && req.user.id) { // Usar req.user.id
+      await registerActivity({
+        usuario_id: req.user.id, // Usar req.user.id
+        tipo_accion: 'crear_rol',
+        descripcion: `Se creó un nuevo rol: ${name}`,
+        entidad_tipo: 'rol',
+        entidad_id: newRole.id,
+        entidad_nombre: name,
+        datos_adicionales: { permisos: permissionIds.length }
+      }).catch(err => console.error('Error al registrar actividad de creación de rol:', err));
+    }
+
     // Devolver el rol creado (con descripción)
     // Añadir campos 'users' y 'permissions' con valor 0 por defecto para consistencia con getAllRoles
     const roleToReturn = { ...newRole, users: 0, permissions: permissionIds.length };
@@ -185,7 +212,7 @@ export const createRole = async (req: Request, res: Response): Promise<Response>
 };
 
 // --- Controlador para obtener los permisos de un rol específico ---
-export const getRolePermissions = async (req: Request, res: Response): Promise<Response> => {
+export const getRolePermissions = async (req: Request, res: Response): Promise<Response> => { // Usar Request estándar
   const { roleId } = req.params;
   let client: PoolClient | null = null;
 
@@ -215,7 +242,7 @@ export const getRolePermissions = async (req: Request, res: Response): Promise<R
 };
 
 // --- Controlador para actualizar el rol de un usuario ---
-export const updateUserRole = async (req: Request, res: Response): Promise<Response> => {
+export const updateUserRole = async (req: Request, res: Response): Promise<Response> => { // Usar Request estándar
   const { userId } = req.params; // Obtener userId de los parámetros de la ruta
   const { roleId } = req.body; // Obtener roleId del cuerpo de la solicitud
 
@@ -265,7 +292,7 @@ export const updateUserRole = async (req: Request, res: Response): Promise<Respo
 };
 
 // --- Controlador para eliminar un rol ---
-export const deleteRole = async (req: Request, res: Response): Promise<Response> => {
+export const deleteRole = async (req: AuthenticatedRequest, res: Response): Promise<Response> => { // Usar AuthenticatedRequest (para req.user.id)
   const { roleId } = req.params;
   let client: PoolClient | null = null;
 
@@ -285,6 +312,17 @@ export const deleteRole = async (req: Request, res: Response): Promise<Response>
       return res.status(404).json({ message: `Rol con ID ${numericRoleId} no encontrado.` });
     }
 
+    // Registrar la actividad de eliminación de rol
+    if (req.user && req.user.id) { // Usar req.user.id
+      await registerActivity({
+        usuario_id: req.user.id, // Usar req.user.id
+        tipo_accion: 'eliminar_rol',
+        descripcion: `Se eliminó un rol con ID ${numericRoleId}`,
+        entidad_tipo: 'rol',
+        entidad_id: numericRoleId
+      }).catch(err => console.error('Error al registrar actividad de eliminación de rol:', err));
+    }
+
     console.log(`[AdminCtrl] Rol con ID ${numericRoleId} eliminado.`);
     return res.status(200).json({ message: `Rol con ID ${numericRoleId} eliminado exitosamente.` }); // O status 204 No Content
 
@@ -298,7 +336,7 @@ export const deleteRole = async (req: Request, res: Response): Promise<Response>
 };
 
 // --- Controlador para actualizar los permisos de un rol ---
-export const updateRolePermissions = async (req: Request, res: Response): Promise<Response> => {
+export const updateRolePermissions = async (req: AuthenticatedRequest, res: Response): Promise<Response> => { // Usar AuthenticatedRequest (para req.user.id)
   const { roleId } = req.params;
   const { permissionIds } = req.body; // Espera un array de IDs numéricos de permisos
 
@@ -333,6 +371,18 @@ export const updateRolePermissions = async (req: Request, res: Response): Promis
 
     await client.query('COMMIT');
 
+    // Registrar la actividad de actualización de permisos de rol
+    if (req.user && req.user.id) { // Usar req.user.id
+      await registerActivity({
+        usuario_id: req.user.id, // Usar req.user.id
+        tipo_accion: 'actualizar_permisos_rol',
+        descripcion: `Se actualizaron los permisos del rol con ID ${numericRoleId}`,
+        entidad_tipo: 'rol',
+        entidad_id: numericRoleId,
+        datos_adicionales: { permisos: numericPermissionIds.length }
+      }).catch(err => console.error('Error al registrar actividad de actualización de permisos de rol:', err));
+    }
+
     console.log(`[AdminCtrl] Permisos actualizados para rol ID ${numericRoleId}. Nuevos permisos: ${numericPermissionIds.length}`);
     // Devolver los nuevos permisos asignados o un mensaje de éxito
     // Podríamos hacer una consulta para devolver los permisos actualizados
@@ -348,7 +398,7 @@ export const updateRolePermissions = async (req: Request, res: Response): Promis
 };
 
 // --- Controlador para obtener los permisos directos de un usuario ---
-export const getUserDirectPermissions = async (req: Request, res: Response): Promise<Response> => {
+export const getUserDirectPermissions = async (req: Request, res: Response): Promise<Response> => { // Usar Request estándar
   const { userId } = req.params;
   let client: PoolClient | null = null;
 
@@ -378,7 +428,7 @@ export const getUserDirectPermissions = async (req: Request, res: Response): Pro
 };
 
 // --- Controlador para actualizar los permisos directos de un usuario ---
-export const updateUserDirectPermissions = async (req: Request, res: Response): Promise<Response> => {
+export const updateUserDirectPermissions = async (req: AuthenticatedRequest, res: Response): Promise<Response> => { // Usar AuthenticatedRequest (para req.user.id)
   const { userId } = req.params;
   const { permissionIds } = req.body; // Espera array de IDs numéricos de permisos directos
 
@@ -410,6 +460,18 @@ export const updateUserDirectPermissions = async (req: Request, res: Response): 
 
     await client.query('COMMIT');
 
+    // Registrar la actividad de actualización de permisos directos de usuario
+    if (req.user && req.user.id) { // Usar req.user.id
+      await registerActivity({
+        usuario_id: req.user.id, // Usar req.user.id
+        tipo_accion: 'actualizar_permisos_usuario',
+        descripcion: `Se actualizaron los permisos directos del usuario con ID ${numericUserId}`,
+        entidad_tipo: 'usuario',
+        entidad_id: numericUserId,
+        datos_adicionales: { permisos: numericPermissionIds.length }
+      }).catch(err => console.error('Error al registrar actividad de actualización de permisos de usuario:', err));
+    }
+
     console.log(`[AdminCtrl] Permisos directos actualizados para usuario ID ${numericUserId}. Nuevos permisos directos: ${numericPermissionIds.length}`);
     return res.status(200).json({ message: 'Permisos directos del usuario actualizados exitosamente.', assignedDirectPermissions: numericPermissionIds.length });
 
@@ -422,4 +484,298 @@ export const updateUserDirectPermissions = async (req: Request, res: Response): 
   }
 };
 
-// Aquí irían otros controladores de admin (editarRol, etc.)
+// --- Controlador para eliminar un usuario ---
+export const deleteUser = async (req: AuthenticatedRequest, res: Response): Promise<Response> => { // Usar AuthenticatedRequest (para req.user.id)
+  const { userId } = req.params;
+
+  // Validación básica
+  if (!userId) {
+    return res.status(400).json({ message: 'ID del usuario es requerido.' });
+  }
+
+  // Convertir a número
+  const numericUserId = parseInt(userId, 10);
+  if (isNaN(numericUserId)) {
+    return res.status(400).json({ message: 'ID del usuario debe ser un número válido.' });
+  }
+
+  let client: PoolClient | null = null;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    // Obtener información del usuario antes de eliminarlo (para el registro de actividad)
+    const getUserQuery = 'SELECT nombre, email FROM usuarios WHERE id = $1';
+    const userResult = await client.query(getUserQuery, [numericUserId]);
+
+    if (userResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: `Usuario con ID ${numericUserId} no encontrado.` });
+    }
+
+    const userName = userResult.rows[0].nombre;
+    const userEmail = userResult.rows[0].email;
+
+    // Verificar si el usuario tiene órdenes de compra asociadas
+    const checkOrdersQuery = 'SELECT COUNT(*) FROM ordenes_compra WHERE usuario_id = $1';
+    const ordersResult = await client.query(checkOrdersQuery, [numericUserId]);
+    const orderCount = parseInt(ordersResult.rows[0].count);
+
+    if (orderCount > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        message: `No se puede eliminar el usuario porque tiene ${orderCount} ${orderCount === 1 ? 'orden de compra asociada' : 'órdenes de compra asociadas'}.`,
+        error: 'user_has_orders',
+        orderCount: orderCount
+      });
+    }
+
+    // Eliminar el usuario (las restricciones de clave foránea con ON DELETE CASCADE se encargarán de las tablas relacionadas)
+    const deleteQuery = 'DELETE FROM usuarios WHERE id = $1 RETURNING id';
+    const result = await client.query(deleteQuery, [numericUserId]);
+
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: `Usuario con ID ${numericUserId} no encontrado.` });
+    }
+
+    await client.query('COMMIT');
+
+    // Registrar la actividad de eliminación de usuario
+    if (req.user && req.user.id) { // Usar req.user.id
+      await registerActivity({
+        usuario_id: req.user.id, // Usar req.user.id
+        tipo_accion: 'eliminar_usuario',
+        descripcion: `Se eliminó el usuario ${userName} (${userEmail})`,
+        entidad_tipo: 'usuario',
+        entidad_nombre: userName,
+        datos_adicionales: { email: userEmail }
+      }).catch(err => console.error('Error al registrar actividad de eliminación de usuario:', err));
+    }
+
+    console.log(`[AdminCtrl] Usuario con ID ${numericUserId} (${userName}) eliminado.`);
+    return res.status(200).json({
+      message: `Usuario ${userName} eliminado exitosamente.`,
+      deletedUser: {
+        id: numericUserId,
+        name: userName,
+        email: userEmail
+      }
+    });
+
+  } catch (error: any) {
+    await client?.query('ROLLBACK');
+    console.error(`Error al eliminar usuario ${userId}:`, error);
+
+    // Manejar errores específicos
+    if (error.code === '23503') { // Foreign key violation
+      return res.status(409).json({
+        message: 'No se puede eliminar el usuario porque tiene registros asociados que no se pueden eliminar automáticamente.',
+        error: 'foreign_key_violation'
+      });
+    }
+
+    return res.status(500).json({ message: 'Error interno del servidor al eliminar usuario.' });
+  } finally {
+    client?.release();
+  }
+};
+
+// --- Controlador para activar/desactivar un usuario ---
+export const toggleUserStatus = async (req: AuthenticatedRequest, res: Response): Promise<Response> => { // Usar AuthenticatedRequest (para req.user.id)
+  const { userId } = req.params;
+  const { status } = req.body; // 'Activo' o 'Inactivo'
+
+  const normalizedStatus = typeof status === 'string' ? status.toLowerCase() : '';
+
+  if (!['activo', 'inactivo', 'pendiente'].includes(normalizedStatus)) {
+    return res.status(400).json({ message: 'El estado debe ser "activo", "inactivo" o "pendiente".' });
+  }
+
+  const numericUserId = parseInt(userId, 10);
+  if (isNaN(numericUserId)) {
+    return res.status(400).json({ message: 'El ID de usuario proporcionado no es válido.' });
+  }
+
+  let client: PoolClient | null = null;
+  try {
+    client = await pool.connect();
+
+    // Verificar si el usuario existe y obtener su nombre para el registro de actividad
+    const userQuery = 'SELECT nombre, email, estado FROM usuarios WHERE id = $1';
+    const userResult = await client.query(userQuery, [numericUserId]);
+
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ message: `Usuario con ID ${numericUserId} no encontrado.` });
+    }
+
+    const userName = userResult.rows[0].nombre;
+    const userEmail = userResult.rows[0].email;
+    const currentStatus = userResult.rows[0].estado;
+
+    // Si el estado actual es el mismo que el solicitado (ignorando mayúsculas/minúsculas), no hacer nada
+    if (currentStatus.toLowerCase() === normalizedStatus) {
+      return res.status(200).json({
+        message: `El usuario ya tiene el estado ${status}.`,
+        user: {
+          id: numericUserId,
+          name: userName,
+          email: userEmail,
+          status: status
+        }
+      });
+    }
+
+    // Actualizar el estado del usuario
+    const updateQuery = 'UPDATE usuarios SET estado = $1 WHERE id = $2 RETURNING id';
+    const result = await client.query(updateQuery, [normalizedStatus, numericUserId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: `Usuario con ID ${numericUserId} no encontrado.` });
+    }
+
+    // Registrar la actividad de cambio de estado
+    // Corregido: Usar req.user.id y añadir entidad_id
+    if (req.user && req.user.id) {
+      await registerActivity({
+        usuario_id: req.user.id, // Corregido de req.user.userId
+        tipo_accion: normalizedStatus === 'activo' ? 'activar_usuario' : 'desactivar_usuario',
+        descripcion: `Se ${normalizedStatus === 'activo' ? 'activó' : 'desactivó'} el usuario ${userName} (${userEmail})`,
+        entidad_tipo: 'usuario',
+        entidad_id: numericUserId, // Añadido ID del usuario afectado
+        entidad_nombre: userName,
+        datos_adicionales: { email: userEmail, nuevo_estado: normalizedStatus }
+      }).catch(err => console.error('Error al registrar actividad de cambio de estado de usuario:', err));
+    }
+
+    console.log(`[AdminCtrl] Usuario con ID ${numericUserId} (${userName}) ${normalizedStatus === 'activo' ? 'activado' : 'desactivado'}.`);
+    return res.status(200).json({
+      message: `Usuario ${userName} ${normalizedStatus === 'activo' ? 'activado' : 'desactivado'} exitosamente.`,
+      user: {
+        id: numericUserId,
+        name: userName,
+        email: userEmail,
+        status: normalizedStatus
+      }
+    });
+
+  } catch (error) {
+    console.error(`Error al cambiar estado de usuario ${userId}:`, error);
+    return res.status(500).json({ message: 'Error interno del servidor al cambiar estado de usuario.' });
+  } finally {
+    client?.release();
+  }
+};
+
+// --- Controlador para actualizar un usuario ---
+export const updateUser = async (req: AuthenticatedRequest, res: Response): Promise<Response> => {
+  const { userId } = req.params;
+  const { nombre, email, rol_id, area_id, estado, password } = req.body;
+
+  // Validación básica
+  if (!nombre || !email || !rol_id || !estado) {
+    return res.status(400).json({ message: 'Nombre, email, rol_id y estado son requeridos.' });
+  }
+
+  const numericUserId = parseInt(userId, 10);
+   if (isNaN(numericUserId)) {
+     return res.status(400).json({ message: 'El ID de usuario proporcionado no es válido.' });
+   }
+   const numericRoleId = parseInt(rol_id, 10);
+    if (isNaN(numericRoleId)) {
+     return res.status(400).json({ message: 'El ID de rol proporcionado no es válido.' });
+   }
+   const numericAreaId = area_id ? parseInt(area_id, 10) : null;
+    if (area_id && isNaN(numericAreaId as number)) {
+      return res.status(400).json({ message: 'El ID de área proporcionado no es válido.' });
+   }
+
+
+  let client: PoolClient | null = null;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    // 1. Actualizar datos básicos del usuario
+    let updateFields = ['nombre = $1', 'email = $2', 'area_id = $3', 'estado = $4'];
+    const queryParams: any[] = [nombre, email, numericAreaId, estado];
+    let paramIndex = 5;
+
+    // 2. Hashear y actualizar contraseña solo si se proporcionó una nueva
+    if (password) {
+      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+      updateFields.push(`password_hash = $${paramIndex}`);
+      queryParams.push(passwordHash);
+      paramIndex++;
+    }
+
+    const updateUserQuery = `
+      UPDATE usuarios
+      SET ${updateFields.join(', ')}, fecha_actualizacion = NOW()
+      WHERE id = $${paramIndex}
+      RETURNING id, nombre, email, estado, avatar_url, area_id, fecha_creacion
+    `;
+    queryParams.push(numericUserId);
+
+    const userResult = await client.query(updateUserQuery, queryParams);
+
+    if (userResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: `Usuario con ID ${numericUserId} no encontrado.` });
+    }
+    const updatedUser = userResult.rows[0];
+
+    // 3. Actualizar rol (eliminar anterior, insertar nuevo)
+    await client.query('DELETE FROM usuario_roles WHERE usuario_id = $1', [numericUserId]);
+    await client.query('INSERT INTO usuario_roles (usuario_id, rol_id) VALUES ($1, $2)', [numericUserId, numericRoleId]);
+
+    await client.query('COMMIT');
+
+    // Registrar actividad
+     if (req.user && req.user.id) {
+       await registerActivity({
+         usuario_id: req.user.id,
+         tipo_accion: 'actualizar_usuario',
+         descripcion: `Se actualizó el usuario ${updatedUser.nombre} (${updatedUser.email})`,
+         entidad_tipo: 'usuario',
+         entidad_id: numericUserId,
+         entidad_nombre: updatedUser.nombre,
+         datos_adicionales: { email: updatedUser.email, rol_id: numericRoleId, area_id: numericAreaId, estado: estado }
+       }).catch(err => console.error('Error al registrar actividad de actualización de usuario:', err));
+     }
+
+    // Devolver usuario actualizado (sin hash de contraseña)
+    // Necesitamos obtener el nombre del rol y del área para devolver la interfaz completa
+     const roleResult = await client.query('SELECT nombre FROM roles WHERE id = $1', [numericRoleId]);
+     const areaResult = numericAreaId ? await client.query('SELECT nombre FROM areas WHERE id = $1', [numericAreaId]) : null;
+
+     const finalUserData = {
+         id: updatedUser.id,
+         name: updatedUser.nombre,
+         email: updatedUser.email,
+         role: roleResult.rows[0]?.nombre || 'Desconocido',
+         rol_id: numericRoleId,
+         status: updatedUser.estado,
+         createdAt: updatedUser.fecha_creacion,
+         avatar: updatedUser.avatar_url,
+         area_id: numericAreaId,
+         area_nombre: areaResult?.rows[0]?.nombre || null
+     };
+
+
+    return res.status(200).json(finalUserData);
+
+  } catch (error: any) {
+    await client?.query('ROLLBACK');
+    console.error(`Error al actualizar usuario ${userId}:`, error);
+     if (error.code === '23505' && error.constraint === 'usuarios_email_key') {
+        return res.status(409).json({ message: `El email "${email}" ya está registrado por otro usuario.` });
+     }
+     if (error.code === '23503') { // Foreign key violation (rol_id o area_id inválido)
+         return res.status(400).json({ message: 'El rol o área especificado no existe.' });
+     }
+    return res.status(500).json({ message: 'Error interno del servidor al actualizar usuario.' });
+  } finally {
+    client?.release();
+  }
+};

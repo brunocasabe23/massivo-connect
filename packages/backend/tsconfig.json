@@ -27,6 +27,6 @@
       "*": ["node_modules/*", "src/types/*"]
     }
   },
-  "include": ["src/**/*"],                    /* Compile files in the 'src' directory */
+  "include": ["src/**/*", "src/types/**/*.d.ts"],                    /* Compile files in the 'src' directory */
   "exclude": ["node_modules", "dist"]         /* Exclude node_modules and dist directories */
 }

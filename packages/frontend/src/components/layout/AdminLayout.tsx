@@ -12,10 +12,14 @@ import {
   ListIcon,
   Building,
   Home,
-  Bell,
   ShieldCheck,
   Users,
+  Activity,
+  LayoutDashboard, // Icono para Centro de Compras
+  Store, // Icono para Proveedores
 } from "lucide-react";
+
+import { NotificationsPopover } from "@/components/notifications/NotificationsPopover"; // Importar componente de notificaciones
 
 import {
   Sidebar,
@@ -47,9 +51,12 @@ import { useAuth } from "@/contexts/AuthContext"; // Importar hook de autenticac
 
 // Layout principal del panel de administración
 export default function AdminLayout() {
+  // Obtener el tema actual del contexto de autenticación
+  const { theme } = useAuth();
+
   // El componente principal configura el Provider y el fondo
   return (
-    <SidebarProvider className="bg-slate-50"> {/* Pasar clase de fondo aquí */}
+    <SidebarProvider className={theme === 'dark' ? 'bg-background' : 'bg-slate-50'}> {/* Aplicar clase de fondo según el tema */}
       <AdminLayoutContent /> {/* El contenido real está en este componente hijo */}
     </SidebarProvider>
   );
@@ -58,6 +65,7 @@ export default function AdminLayout() {
 // Componente hijo que renderiza el layout y puede usar el hook useSidebar
 function AdminLayoutContent() {
   const { state, isMobile } = useSidebar(); // Obtener estado del sidebar
+  const { theme } = useAuth(); // Obtener el tema actual
 
   // Determinar el margen izquierdo para el contenido principal
   // Usamos ml-[--sidebar-width] y ml-[--sidebar-width-icon] que son variables CSS definidas en sidebar.tsx
@@ -73,19 +81,16 @@ function AdminLayoutContent() {
       {/* Aplicar margen izquierdo dinámico y transición SOLO en desktop */}
       <main className={`flex-1 flex flex-col transition-[margin-left] ease-in-out duration-300 ${!isMobile ? mainMarginLeftClass : ''}`}>
         {/* Cabecera superior */}
-        <div className="flex h-16 items-center gap-4 border-b bg-white px-4 md:px-6 shadow-sm shrink-0">
+        <div className={`flex h-16 items-center gap-4 border-b ${theme === 'dark' ? 'bg-card border-slate-700' : 'bg-white border-slate-200'} px-4 md:px-6 shadow-sm shrink-0`}>
           {/* Mostrar trigger SOLO en móvil */}
           {isMobile && <SidebarTrigger />}
           <div className="ml-auto flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
-            </Button>
+            <NotificationsPopover /> {/* Componente de notificaciones */}
             <UserDropdown /> {/* Menú desplegable del usuario */}
           </div>
         </div>
         {/* Contenido principal de la página */}
-        <div className="flex-grow p-4 md:p-6 overflow-auto"> {/* Permitir scroll en el contenido */}
+        <div className={`flex-grow p-4 md:p-6 overflow-auto ${theme === 'dark' ? 'bg-background' : ''}`}> {/* Permitir scroll en el contenido */}
           <Outlet /> {/* Aquí se renderizarán las rutas anidadas */}
         </div>
       </main>
@@ -108,7 +113,7 @@ function UserDropdown() {
         <Button variant="ghost" size="icon" className="rounded-full">
           <Avatar>
             {/* TODO: Usar imagen real del usuario si está disponible */}
-            <AvatarImage src="/placeholder-user.jpg" />
+            <AvatarImage src={user?.avatarUrl || "/placeholder-user.jpg"} />
             {/* TODO: Usar iniciales reales del usuario */}
             <AvatarFallback>{user?.nombre ? user.nombre.substring(0, 2).toUpperCase() : 'U'}</AvatarFallback>
           </Avatar>
@@ -125,8 +130,8 @@ function UserDropdown() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-           {/* TODO: Crear ruta /configuracion */}
-          <Link to="/configuracion">
+          {/* Enlace a la página de configuración del perfil */}
+          <Link to="/perfil">
             <Settings className="mr-2 h-4 w-4" />
             <span>Configuración</span>
           </Link>
@@ -151,59 +156,108 @@ function MainSidebar() {
   // Helper para verificar permisos con log de depuración
   const hasPermission = (key: string) => {
     const has = permisos.includes(key);
-    console.log(`[MainSidebar] Verificando permiso '${key}': ${has ? 'SÍ' : 'NO'} (permisos: ${permisos.join(', ')})`);
+    // console.log(`[MainSidebar] Verificando permiso '${key}': ${has ? 'SÍ' : 'NO'} (permisos: ${permisos.join(', ')})`); // Log de depuración eliminado
     return has;
   };
 
   // Estados para controlar submenús abiertos
   // Inicializar basado en si la ruta actual incluye la base del submenú
-  const [presupuestosOpen, setPresupuestosOpen] = React.useState(pathname.includes("/codigos-presupuestales"));
+  const [presupuestosOpen, setPresupuestosOpen] = React.useState(pathname.includes("/codigos-presupuestales") || pathname.includes("/dashboard/presupuestos")); // Ajustado para incluir dashboard
   const [adminOpen, setAdminOpen] = React.useState(pathname.includes("/admin"));
+  const [comprasOpen, setComprasOpen] = React.useState(pathname.includes("/compras")); // Estado para submenú Compras
+  
+  // Obtener el tema actual del contexto de autenticación
+  const { theme } = useAuth();
 
   return (
-    <Sidebar className="border-r border-slate-200">
-      <SidebarHeader className="border-b border-slate-200">
+    <Sidebar className={`border-r ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
+      <SidebarHeader className={`border-b ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
         <div className="flex items-center gap-2 px-4 py-3">
           {/* <AnimatedFlask /> */} {/* Comentado temporalmente si causa problemas */}
           {/* TODO: Reemplazar con logo real */}
-          <span className="text-xl font-bold text-[#005291]">SistemaPro</span>
+          <span className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-[#005291]'}`}>SistemaPro</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           {/* Enlace Inicio */}
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === "/dashboard"}>
-              <Link to="/dashboard">
+            <Link to="/dashboard">
+              <SidebarMenuButton isActive={pathname === "/dashboard"}>
                 <Home className="h-5 w-5" />
                 <span>Inicio</span>
-              </Link>
-            </SidebarMenuButton>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
 
-          {/* Enlace Compras (Condicional) */}
-          {hasPermission('ver_compras') && (
+          {/* Compras con submenú (Condicional) */}
+          {hasPermission('ver_compras') && ( // Permiso general para la sección Compras
             <SidebarMenuItem>
-              {/* TODO: Crear ruta /compras */}
-              <SidebarMenuButton asChild isActive={pathname === "/compras"}>
-                <Link to="/compras">
-                  <ShoppingCart className="h-5 w-5" />
-                  <span>Compras</span>
-                </Link>
+              <SidebarMenuButton
+                isActive={pathname.includes("/compras")} // Activo si la ruta empieza con /compras
+                onClick={() => setComprasOpen(!comprasOpen)}
+              >
+                <ShoppingCart className="h-5 w-5" />
+                <span>Compras</span>
+                <ChevronDown
+                  className={`ml-auto h-4 w-4 shrink-0 transition-transform duration-200 ${
+                    comprasOpen ? "rotate-180" : ""
+                  }`}
+                />
               </SidebarMenuButton>
+
+              {comprasOpen && (
+                <SidebarMenuSub>
+                  {/* TODO: Añadir permiso específico para Solicitudes si es necesario */}
+                  <SidebarMenuSubItem>
+                    {/* Enlace a /compras (que ahora muestra Solicitudes por defecto) o /compras/solicitudes */}
+                    <Link to="/compras/solicitudes"> {/* Puede seguir apuntando a la ruta explícita */}
+                      <SidebarMenuSubButton isActive={pathname === "/compras" || pathname === "/compras/solicitudes"}> {/* Activo en la ruta base o la explícita */}
+                        <ListIcon className="h-4 w-4" /> {/* Icono para Solicitudes */}
+                        <span>Solicitudes</span>
+                      </SidebarMenuSubButton>
+                    </Link>
+                  </SidebarMenuSubItem>
+
+                  {/* Enlace Proveedores (Condicional dentro de Compras) */}
+                  {hasPermission('ver_proveedores') && (
+                    <SidebarMenuSubItem>
+                      <Link to="/compras/proveedores"> {/* Ruta anidada */}
+                        <SidebarMenuSubButton isActive={pathname === "/compras/proveedores"}> {/* Ruta anidada */}
+                          <Store className="h-4 w-4" /> {/* Icono Proveedores */}
+                          <span>Proveedores</span>
+                        </SidebarMenuSubButton>
+                      </Link>
+                    </SidebarMenuSubItem>
+                  )}
+
+                  {/* Enlace Centro de Compras (Condicional dentro de Compras) */}
+                  {hasPermission('ver_centro_compras') && (
+                     <SidebarMenuSubItem>
+                       <Link to="/compras/centro-compras"> {/* Ruta anidada */}
+                         <SidebarMenuSubButton isActive={pathname === "/compras/centro-compras"}> {/* Ruta anidada */}
+                           <LayoutDashboard className="h-4 w-4" /> {/* Icono Centro de Compras */}
+                           <span>Centro de Compras</span>
+                         </SidebarMenuSubButton>
+                       </Link>
+                     </SidebarMenuSubItem>
+                  )}
+                </SidebarMenuSub>
+              )}
             </SidebarMenuItem>
           )}
+          {/* Los enlaces originales de Centro de Compras y Proveedores se eliminan de aquí */}
 
           {/* Enlace Viáticos (Condicional) */}
           {hasPermission('ver_viaticos') && (
             <SidebarMenuItem>
               {/* TODO: Crear ruta /viaticos */}
-              <SidebarMenuButton asChild isActive={pathname === "/viaticos"}>
-                <Link to="/viaticos">
-                  <Plane className="h-5 w-5" />
-                  <span>Viáticos</span>
-                </Link>
+            <Link to="/viaticos">
+              <SidebarMenuButton isActive={pathname === "/viaticos"}>
+                <Plane className="h-5 w-5" />
+                <span>Viáticos</span>
               </SidebarMenuButton>
+            </Link>
             </SidebarMenuItem>
           )}
 
@@ -227,31 +281,31 @@ function MainSidebar() {
                 <SidebarMenuSub>
                   <SidebarMenuSubItem>
                     {/* Ruta ya existente */}
-                    <SidebarMenuSubButton asChild isActive={pathname === "/budget-codes"}>
-                      <Link to="/budget-codes">
-                        <ListIcon className="h-4 w-4" />
-                        <span>Lista de Códigos</span>
-                      </Link>
+                  <Link to="/budget-codes">
+                    <SidebarMenuSubButton isActive={pathname === "/budget-codes"}>
+                      <ListIcon className="h-4 w-4" />
+                      <span>Lista de Códigos</span>
                     </SidebarMenuSubButton>
+                  </Link>
                   </SidebarMenuSubItem>
                   {/* TODO: Añadir verificación de permisos para sub-items si es necesario */}
                   <SidebarMenuSubItem>
-                    {/* TODO: Crear ruta /codigos-presupuestales/dashboard */}
-                    <SidebarMenuSubButton asChild isActive={pathname === "/codigos-presupuestales/dashboard"}>
-                      <Link to="/codigos-presupuestales/dashboard">
-                        <BarChart3 className="h-4 w-4" />
-                        <span>Dashboard</span>
-                      </Link>
+                    {/* Enlace al nuevo dashboard de presupuestos */}
+                  <Link to="/dashboard/presupuestos">
+                    <SidebarMenuSubButton isActive={pathname === "/dashboard/presupuestos"}>
+                      <BarChart3 className="h-4 w-4" />
+                      <span>Dashboard</span>
                     </SidebarMenuSubButton>
+                  </Link>
                   </SidebarMenuSubItem>
                   <SidebarMenuSubItem>
                     {/* TODO: Crear ruta /codigos-presupuestales/areas */}
-                    <SidebarMenuSubButton asChild isActive={pathname === "/codigos-presupuestales/areas"}>
-                      <Link to="/codigos-presupuestales/areas">
-                        <Building className="h-4 w-4" />
-                        <span>Áreas</span>
-                      </Link>
+                  <Link to="/codigos-presupuestales/areas">
+                    <SidebarMenuSubButton isActive={pathname === "/codigos-presupuestales/areas"}>
+                      <Building className="h-4 w-4" />
+                      <span>Áreas</span>
                     </SidebarMenuSubButton>
+                  </Link>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
               )}
@@ -279,59 +333,66 @@ function MainSidebar() {
                   {/* TODO: Añadir verificación de permisos para sub-items si es necesario */}
                   <SidebarMenuSubItem>
                     {/* TODO: Crear ruta /admin */}
-                    <SidebarMenuSubButton asChild isActive={pathname === "/admin"}>
-                      <Link to="/admin">
-                        <BarChart3 className="h-4 w-4" />
-                        <span>Panel Principal</span>
-                      </Link>
+                  <Link to="/admin">
+                    <SidebarMenuSubButton isActive={pathname === "/admin"}>
+                      <BarChart3 className="h-4 w-4" />
+                      <span>Panel Principal</span>
                     </SidebarMenuSubButton>
+                  </Link>
                   </SidebarMenuSubItem>
                   <SidebarMenuSubItem>
                     {/* TODO: Crear ruta /admin/usuarios */}
-                    <SidebarMenuSubButton asChild isActive={pathname === "/admin/usuarios"}>
-                      <Link to="/admin/usuarios">
-                        <Users className="h-4 w-4" />
-                        <span>Usuarios</span>
-                      </Link>
+                  <Link to="/admin/usuarios">
+                    <SidebarMenuSubButton isActive={pathname === "/admin/usuarios"}>
+                      <Users className="h-4 w-4" />
+                      <span>Usuarios</span>
                     </SidebarMenuSubButton>
+                  </Link>
                   </SidebarMenuSubItem>
                   <SidebarMenuSubItem>
                     {/* TODO: Crear ruta /admin/roles */}
-                    <SidebarMenuSubButton asChild isActive={pathname === "/admin/roles"}>
-                      <Link to="/admin/roles">
-                        <ShieldCheck className="h-4 w-4" />
-                        <span>Roles y Permisos</span>
-                      </Link>
+                  <Link to="/admin/roles">
+                    <SidebarMenuSubButton isActive={pathname === "/admin/roles"}>
+                      <ShieldCheck className="h-4 w-4" />
+                      <span>Roles y Permisos</span>
                     </SidebarMenuSubButton>
+                  </Link>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                  <Link to="/admin/actividades">
+                    <SidebarMenuSubButton isActive={pathname === "/admin/actividades"}>
+                      <Activity className="h-4 w-4" />
+                      <span>Registro de Actividades</span>
+                    </SidebarMenuSubButton>
+                  </Link>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
               )}
             </SidebarMenuItem>
           )}
 
-           {/* Enlace Perfil (Siempre visible?) */}
-          <SidebarMenuItem>
-             {/* TODO: Crear ruta /perfil */}
-            <SidebarMenuButton asChild isActive={pathname === "/perfil"}>
-              <Link to="/perfil">
-                <User className="h-5 w-5" />
-                <span>Perfil</span>
-              </Link>
+           {/* Enlace Perfil eliminado, ya que está integrado en Configuración (/perfil) */}
+          {/* <SidebarMenuItem>
+             <SidebarMenuButton isActive={pathname === "/perfil"}>
+              <User className="h-5 w-5" />
+              <span>Perfil</span>
+              <Link to="/perfil" className="absolute inset-0" aria-hidden="true" />
             </SidebarMenuButton>
-          </SidebarMenuItem>
+          </SidebarMenuItem> */}
 
-           {/* Enlace Configuración (Condicional?) */}
-           {hasPermission('ver_configuracion') && ( // Ejemplo de permiso
+
+           {/* Enlace Configuración (Accesible a todos los usuarios logueados) */}
+           {/* {hasPermission('ver_configuracion') && ( // Eliminada condición de permiso */}
              <SidebarMenuItem>
-               {/* TODO: Crear ruta /configuracion */}
-              <SidebarMenuButton asChild isActive={pathname === "/configuracion"}>
-                <Link to="/configuracion">
-                  <Settings className="h-5 w-5" />
-                  <span>Configuración</span>
-                </Link>
+               {/* Enlace a la página de configuración del perfil */}
+            <Link to="/perfil">
+              <SidebarMenuButton isActive={pathname === "/perfil"}>
+                <Settings className="h-5 w-5" />
+                <span>Configuración</span>
               </SidebarMenuButton>
+            </Link>
             </SidebarMenuItem>
-           )}
+           {/* )} */}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="border-t border-slate-200">

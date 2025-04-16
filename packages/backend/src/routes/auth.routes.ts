@@ -1,4 +1,5 @@
-import { Router } from 'express';
+const express = require('express');
+const Router = express.Router;
 // Importar los controladores
 import { registerUser, loginUser } from '../controllers/auth.controller';
 
@@ -6,8 +7,8 @@ const router = Router();
 
 // Ruta para registrar un nuevo usuario
 router.post('/register', registerUser);
-// router.post('/register', (req, res) => { 
-//   res.status(501).json({ message: 'Registro no implementado aún' }); 
+// router.post('/register', (req, res) => {
+//   res.status(501).json({ message: 'Registro no implementado aún' });
 // });
 
 

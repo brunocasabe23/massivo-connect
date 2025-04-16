@@ -1,5 +1,6 @@
 // Eliminado "use client"
 import { useState, useEffect } from "react";
+import { formatDate } from '@/utils/date-utils';
 import { motion } from "framer-motion";
 import { ShieldCheck, Search, Plus, MoreHorizontal, Edit, Trash, Users, Save, Check } from "lucide-react"; // Quitar ChevronDown
 import { Button } from "@/components/ui/button";
@@ -251,8 +252,8 @@ export default function AdminRolesPage() {
   return (
     <div className="space-y-8">
       <div className="dashboard-header">
-        <h1 className="text-2xl font-bold text-slate-800">Roles y Permisos</h1>
-        <p className="text-slate-500">Administra los roles del sistema y sus permisos asociados</p>
+        <h1 className="text-2xl font-bold">Roles y Permisos</h1>
+        <p className="text-muted-foreground">Administra los roles del sistema y sus permisos asociados</p>
       </div>
 
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
@@ -266,7 +267,7 @@ export default function AdminRolesPage() {
             }
         }}>
           <DialogTrigger asChild>
-            <Button className="mt-4 md:mt-0 bg-[#005291] hover:bg-[#004277] transition-colors">
+            <Button className="mt-4 md:mt-0">
               <span><Plus className="mr-2 h-4 w-4" />Nuevo Rol</span>
             </Button>
           </DialogTrigger>
@@ -319,7 +320,7 @@ export default function AdminRolesPage() {
                                 />
                                 <div>
                                   <Label htmlFor={`create-${permission.id}`} className="font-medium text-sm">{permission.name}</Label>
-                                  <p className="text-xs text-slate-500">{permission.description}</p>
+                                  <p className="text-xs text-muted-foreground">{permission.description}</p>
                                 </div>
                               </div>
                             ))}
@@ -344,15 +345,15 @@ export default function AdminRolesPage() {
       {/* Tarjetas de resumen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <Card className="dashboard-card">
+          <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center text-sm font-medium text-slate-500">
-                <ShieldCheck className="mr-2 h-4 w-4 text-[#005291]" />Total de Roles
+              <CardTitle className="flex items-center text-sm font-medium text-muted-foreground">
+                <ShieldCheck className="mr-2 h-4 w-4 text-primary" />Total de Roles
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-12 inline-block"/> : error ? '-' : rolesData.length}</div>
-              <p className="text-xs text-slate-500 mt-1">Roles configurados en el sistema</p>
+              <p className="text-xs text-muted-foreground mt-1">Roles configurados en el sistema</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -361,15 +362,15 @@ export default function AdminRolesPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
         >
-          <Card className="dashboard-card">
+          <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center text-sm font-medium text-slate-500">
+              <CardTitle className="flex items-center text-sm font-medium text-muted-foreground">
                 <Check className="mr-2 h-4 w-4 text-green-500" />Total de Permisos
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-12 inline-block"/> : error ? '-' : permissionsData.reduce((total, category) => total + category.permissions.length, 0)}</div>
-              <p className="text-xs text-slate-500 mt-1">Permisos disponibles para asignar</p>
+              <p className="text-xs text-muted-foreground mt-1">Permisos disponibles para asignar</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -378,25 +379,25 @@ export default function AdminRolesPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.2 }}
         >
-          <Card className="dashboard-card">
+          <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center text-sm font-medium text-slate-500">
+              <CardTitle className="flex items-center text-sm font-medium text-muted-foreground">
                 <Users className="mr-2 h-4 w-4 text-blue-500" />Usuarios Asignados
               </CardTitle>
             </CardHeader>
             <CardContent>
               {/* TODO: La API de roles debería devolver el conteo de usuarios por rol */}
               <div className="text-2xl font-bold">{loading ? <Skeleton className="h-8 w-12 inline-block"/> : error ? '-' : rolesData.reduce((total, role) => total + (role.users || 0), 0)}</div>
-              <p className="text-xs text-slate-500 mt-1">Usuarios con roles asignados</p>
+              <p className="text-xs text-muted-foreground mt-1">Usuarios con roles asignados</p>
             </CardContent>
           </Card>
         </motion.div>
       </div>
 
-      <div className="bg-white rounded-lg border shadow-sm">
+      <div className="bg-card rounded-lg border shadow-sm">
         <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b">
           <div className="relative w-full md:w-80 mb-4 md:mb-0">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Buscar roles..." className="pl-10 w-full" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
         </div>
@@ -404,7 +405,7 @@ export default function AdminRolesPage() {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50">
+              <TableRow className="bg-muted/50">
                 <TableHead>ID</TableHead><TableHead>Nombre</TableHead><TableHead>Descripción</TableHead><TableHead>Usuarios</TableHead><TableHead>Permisos</TableHead><TableHead>Creado</TableHead><TableHead>Actualizado</TableHead><TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -430,8 +431,27 @@ export default function AdminRolesPage() {
                  </TableRow>
               ) : filteredRoles.length > 0 ? (
                 filteredRoles.map((role) => (
-                  <TableRow key={role.id} className="hover:bg-slate-50 transition-colors">
-                    <TableCell className="font-medium">{role.id}</TableCell><TableCell><Badge className="bg-slate-100 text-slate-800">{role.name}</Badge></TableCell><TableCell>{role.description || '-'}</TableCell><TableCell><div className="flex items-center"><Users className="h-4 w-4 mr-2 text-slate-500" /><span>{role.users || 0}</span></div></TableCell><TableCell><div className="flex items-center"><ShieldCheck className="h-4 w-4 mr-2 text-slate-500" /><span>{role.permissions || 0}</span></div></TableCell><TableCell>{role.createdAt}</TableCell><TableCell>{role.updatedAt || '-'}</TableCell><TableCell className="text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem><span><Edit className="mr-2 h-4 w-4" />Editar</span></DropdownMenuItem><DropdownMenuItem onClick={() => handleOpenPermissionDialog(role)}><span><ShieldCheck className="mr-2 h-4 w-4" />Gestionar permisos</span></DropdownMenuItem><DropdownMenuItem><span><Users className="mr-2 h-4 w-4" />Ver usuarios</span></DropdownMenuItem><DropdownMenuItem className="text-red-500" onClick={() => handleDeleteRole(role.id, role.name)}><span><Trash className="mr-2 h-4 w-4" />Eliminar</span></DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
+                  <TableRow key={role.id}>
+                    <TableCell className="font-medium">{role.id}</TableCell>
+                    <TableCell><Badge variant="secondary">{role.name}</Badge></TableCell>
+                    <TableCell>{role.description || '-'}</TableCell>
+                    <TableCell><div className="flex items-center"><Users className="h-4 w-4 mr-2 text-muted-foreground" /><span>{role.users || 0}</span></div></TableCell>
+                    <TableCell><div className="flex items-center"><ShieldCheck className="h-4 w-4 mr-2 text-muted-foreground" /><span>{role.permissions || 0}</span></div></TableCell>
+                    <TableCell>{formatDate(role.createdAt)}</TableCell>
+                    <TableCell>{role.updatedAt ? formatDate(role.updatedAt) : '-'}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem><span><Edit className="mr-2 h-4 w-4" />Editar</span></DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleOpenPermissionDialog(role)}><span><ShieldCheck className="mr-2 h-4 w-4" />Gestionar permisos</span></DropdownMenuItem>
+                          <DropdownMenuItem><span><Users className="mr-2 h-4 w-4" />Ver usuarios</span></DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-500" onClick={() => handleDeleteRole(role.id, role.name)}><span><Trash className="mr-2 h-4 w-4" />Eliminar</span></DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (

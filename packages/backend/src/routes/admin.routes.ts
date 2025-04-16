@@ -1,5 +1,6 @@
-import { Router } from 'express';
-import { getAllUsers, getAllRoles, getAllPermissions, createRole, updateUserRole, getRolePermissions, deleteRole, updateRolePermissions, getUserDirectPermissions, updateUserDirectPermissions } from '../controllers/admin.controller'; // Añadir controladores de permisos directos
+const express = require('express');
+const Router = express.Router;
+import { getAllUsers, getAllRoles, getAllPermissions, createRole, updateUserRole, getRolePermissions, deleteRole, updateRolePermissions, getUserDirectPermissions, updateUserDirectPermissions, deleteUser, toggleUserStatus, updateUser } from '../controllers/admin.controller'; // Añadir updateUser
 // Importar middlewares
 import { authenticateToken } from '../middleware/auth.middleware';
 import { checkPermission } from '../middleware/permission.middleware';
@@ -46,6 +47,16 @@ router.put('/roles/:roleId/permissions', authenticateToken, checkPermission('edi
 // TODO: Crear y asignar permiso 'gestionar_permisos_usuario'
 router.get('/users/:userId/direct-permissions', authenticateToken, checkPermission('gestionar_permisos_usuario'), getUserDirectPermissions);
 router.put('/users/:userId/direct-permissions', authenticateToken, checkPermission('gestionar_permisos_usuario'), updateUserDirectPermissions);
+
+// Ruta para eliminar un usuario específico
+router.delete('/users/:userId', authenticateToken, checkPermission('eliminar_usuarios'), deleteUser);
+
+// Ruta para activar/desactivar un usuario
+router.put('/users/:userId/status', authenticateToken, checkPermission('gestionar_permisos_usuario'), toggleUserStatus);
+
+// Ruta para actualizar datos de un usuario (nombre, email, area, estado, contraseña opcional)
+// TODO: Crear y asignar permiso 'editar_usuarios'
+router.put('/users/:userId', authenticateToken, checkPermission('editar_usuarios'), updateUser);
 
 // Aquí irían otras rutas de admin (editar rol, etc.)
 

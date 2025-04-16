@@ -1,0 +1,15 @@
+{
+  "name": "db-tools",
+  "version": "1.0.0",
+  "description": "Herramientas para ejecutar consultas SQL en PostgreSQL",
+  "main": "sql-runner.js",
+  "scripts": {
+    "start": "node sql-runner.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "readline-sync": "^1.4.10",
+    "chalk": "^4.1.2",
+    "table": "^6.8.1"
+  }
+}

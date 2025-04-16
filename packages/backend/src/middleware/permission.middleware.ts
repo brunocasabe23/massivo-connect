@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+// import { Request, Response, NextFunction } from 'express';
 import pool from '../config/db'; // Asegúrate que la ruta al pool de DB sea correcta
 import { PoolClient, QueryResult } from 'pg';
 
@@ -8,16 +8,16 @@ import { PoolClient, QueryResult } from 'pg';
  * @param requiredPermissionKey La clave (string) del permiso requerido (ej: 'crear_usuarios').
  */
 export const checkPermission = (requiredPermissionKey: string) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: any, res: any, next: any) => {
     console.log(`[PermMiddleware] Verificando permiso '${requiredPermissionKey}'. req.user:`, req.user); // Log de req.user al inicio
     // Asumimos que authenticateToken ya se ejecutó y adjuntó req.user
-    // Corregir la comprobación y la asignación para usar 'userId' (camelCase) del payload del token
-    if (!req.user || !req.user.userId) { 
-      console.error('Middleware checkPermission: req.user o req.user.userId no encontrado. Asegúrate que authenticateToken se ejecute antes y que el token contenga userId.');
+    // Usar 'id' del payload del token (corregido en auth.controller)
+    if (!req.user || typeof req.user.id !== 'number') { // Verificar que req.user.id exista y sea un número
+      console.error('Middleware checkPermission: req.user o req.user.id inválido. Asegúrate que authenticateToken se ejecute antes y que el token contenga id.');
       return res.status(401).json({ message: 'Usuario no autenticado correctamente.' });
     }
 
-    const userId = req.user.userId; // <--- Usar userId
+    const userId = req.user.id; // <--- Usar id
     let client: PoolClient | null = null;
 
     try {

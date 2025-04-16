@@ -20,6 +20,12 @@ export default defineConfig({
         // Opcional: reescribir la ruta si es necesario
         // rewrite: (path) => path.replace(/^\/api/, '')
       },
+      // Añadir proxy para la ruta de uploads
+      '/uploads': {
+        target: 'http://localhost:5000', // Apuntar al mismo backend
+        changeOrigin: true,
+        // No es necesario reescribir la ruta aquí
+      },
     },
   },
 })
