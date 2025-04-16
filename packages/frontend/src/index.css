@@ -17,7 +17,29 @@ code {
     monospace;
 }
 
+/* Estilos para campos requeridos */
+.required::after {
+  content: '*';
+  color: #ef4444;
+  margin-left: 0.25rem;
+}
 
+/* Estilos para los tabs */
+.tabs-list {
+  background-color: #f8fafc;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+}
+
+/* Estilos para los botones de acción */
+.action-button {
+  background-color: #2563eb;
+  color: white;
+}
+
+.action-button:hover {
+  background-color: #1d4ed8;
+}
 
 @layer base {
   :root {
@@ -86,8 +108,6 @@ code {
     --chart-5: 340 75% 55%;
   }
 }
-
-
 
 @layer base {
   * {

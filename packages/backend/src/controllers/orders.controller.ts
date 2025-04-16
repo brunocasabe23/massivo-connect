@@ -64,19 +64,22 @@ export const getAllOrders = async (req: AuthenticatedRequest, res: Response): Pr
     // Iniciar transacción para asegurar el contexto RLS
     await client.query('BEGIN');
     try {
-      // Establecer contexto RLS dentro de la transacción
-      await client.query('SET LOCAL app.current_user_id = $1', [req.user.id]);
-      await client.query('SET LOCAL app.current_user_role = $1', [req.user.rolNombre || '']); // Usar rolNombre añadido en auth.middleware
+      // Establecer contexto RLS dentro de la transacción (interpolando valores seguros)
+      // Escapar el rol para evitar problemas si contiene comillas simples
+      const userRole = (req.user.rolNombre || '').replace(/'/g, "''");
+      await client.query(`SET LOCAL app.current_user_id = '${req.user.id}'`);
+      await client.query(`SET LOCAL app.current_user_role = '${userRole}'`);
 
       const { estado, fechaDesde, fechaHasta, search } = req.query;
 
-      // Consulta base - Incluye nombre de usuario y código presupuestal
+      // Consulta base - Incluye nombres de usuario, código presupuestal y proveedor
       let query = `
         SELECT
           oc.id,
           oc.descripcion,
           oc.monto,
-          oc.proveedor,
+          oc.proveedor_id, -- Seleccionar ID
+          p.nombre as proveedor_nombre, -- Obtener nombre del proveedor desde la tabla proveedores
           oc.estado,
           oc.fecha_creacion,
           oc.fecha_actualizacion,
@@ -89,6 +92,8 @@ export const getAllOrders = async (req: AuthenticatedRequest, res: Response): Pr
           codigos_presupuestales cp ON oc.cp_id = cp.id
         JOIN
           usuarios u ON oc.usuario_id = u.id -- Unir con usuarios para obtener el nombre
+        LEFT JOIN
+          proveedores p ON oc.proveedor_id = p.id -- LEFT JOIN para obtener nombre del proveedor (si existe)
         -- WHERE clause eliminado, RLS se encargará del filtrado por usuario/rol
       `;
 
@@ -114,7 +119,7 @@ export const getAllOrders = async (req: AuthenticatedRequest, res: Response): Pr
       if (search) {
         conditions.push(`(
           oc.descripcion ILIKE $${paramIndex} OR
-          oc.proveedor ILIKE $${paramIndex} OR
+          p.nombre ILIKE $${paramIndex} OR -- Buscar por nombre de proveedor
           cp.nombre ILIKE $${paramIndex} OR
           u.nombre ILIKE $${paramIndex}
         )`);
@@ -166,11 +171,12 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
     const userAreaId = req.user.area_id; // Obtener area_id del usuario
 
     // Extraer datos del cuerpo de la solicitud
+    // Usar proveedor_id en lugar de proveedor (nombre)
     const {
       cp_id,
       descripcion,
-      monto, // Este es el total, se calculará o se recibe? Asumamos que se recibe por ahora.
-      proveedor,
+      monto,
+      proveedor_id, // Cambiado de proveedor a proveedor_id
       estado,
       laboratorio, // Nuevo
       producto,    // Nuevo
@@ -229,15 +235,16 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
         });
     }
     // --- Fin Verificación ---
+    // Usar proveedor_id en INSERT y en params
     const query = `
       INSERT INTO ordenes_compra
-        (usuario_id, cp_id, descripcion, monto, proveedor, estado, laboratorio, producto, cantidad, moneda, precio_unitario, fecha_entrega, prioridad, usuario_actualizacion_id)
+        (usuario_id, cp_id, descripcion, monto, proveedor_id, estado, laboratorio, producto, cantidad, moneda, precio_unitario, fecha_entrega, prioridad, usuario_actualizacion_id)
       VALUES
         ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $1)
       RETURNING *;
     `;
     const initialState = estado || 'Nueva'; // Estado inicial por defecto
-    const params = [userId, cp_id, descripcion, monto, proveedor, initialState, laboratorio, producto, cantidad, moneda || 'USD', precio_unitario, fecha_entrega, prioridad || 'Media'];
+    const params = [userId, cp_id, descripcion, monto, proveedor_id, initialState, laboratorio, producto, cantidad, moneda || 'USD', precio_unitario, fecha_entrega, prioridad || 'Media'];
 
     // Iniciar una transacción para asegurar la integridad de los datos
     await client.query('BEGIN');
@@ -308,15 +315,19 @@ export const getOrderById = async (req: Request, res: Response): Promise<Respons
     const { id } = req.params;
     try {
         client = await pool.connect();
+        // Añadir JOIN con proveedores para obtener el nombre
         const query = `
             SELECT
                 oc.*,
                 cp.nombre as codigo_presupuestal,
                 u.nombre as solicitante,
-                ua.nombre as usuario_actualizacion_nombre
+                ua.nombre as usuario_actualizacion_nombre,
+                p.nombre as proveedor_nombre -- Obtener nombre del proveedor
             FROM ordenes_compra oc
             JOIN codigos_presupuestales cp ON oc.cp_id = cp.id
             JOIN usuarios u ON oc.usuario_id = u.id
+            LEFT JOIN usuarios ua ON oc.usuario_actualizacion_id = ua.id
+            LEFT JOIN proveedores p ON oc.proveedor_id = p.id -- LEFT JOIN con proveedores
             LEFT JOIN usuarios ua ON oc.usuario_actualizacion_id = ua.id
             WHERE oc.id = $1;
         `;
@@ -346,7 +357,7 @@ export const updateOrder = async (req: AuthenticatedRequest, res: Response): Pro
         const userAreaId = req.user.area_id; // Obtener area_id del usuario que actualiza
 
         // Extraer datos actualizables del cuerpo
-        const { cp_id, descripcion, monto, proveedor, estado, laboratorio, producto, cantidad, moneda, precio_unitario, fecha_entrega, prioridad } = req.body;
+        const { cp_id, descripcion, monto, proveedor_id, estado, laboratorio, producto, cantidad, moneda, precio_unitario, fecha_entrega, prioridad } = req.body; // Usar proveedor_id
 
         // Validación (similar a create) - añadir nuevos campos
         if (!cp_id || !descripcion || monto === undefined || monto === null || !producto || !cantidad || !precio_unitario) {
@@ -377,7 +388,7 @@ export const updateOrder = async (req: AuthenticatedRequest, res: Response): Pro
                 cp_id = $1,
                 descripcion = $2,
                 monto = $3,
-                proveedor = $4,
+                proveedor_id = $4, -- Usar proveedor_id
                 estado = $5,
                 laboratorio = $6,
                 producto = $7,
@@ -391,7 +402,7 @@ export const updateOrder = async (req: AuthenticatedRequest, res: Response): Pro
             WHERE id = $14
             RETURNING *;
         `;
-        const params = [cp_id, descripcion, monto, proveedor, estado, laboratorio, producto, cantidad, moneda || 'USD', precio_unitario, fecha_entrega, prioridad || 'Media', userIdUpdater, id];
+        const params = [cp_id, descripcion, monto, proveedor_id, estado, laboratorio, producto, cantidad, moneda || 'USD', precio_unitario, fecha_entrega, prioridad || 'Media', userIdUpdater, id]; // Usar proveedor_id
 
         const result = await client.query(query, params);
         if (result.rowCount === 0) {

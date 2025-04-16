@@ -14,6 +14,8 @@ import ordersRoutes from './routes/orders.routes'; // Importar rutas de órdenes
 import notificationsRoutes from './routes/notifications.routes'; // Importar rutas de notificaciones
 import userBudgetRoutes from './routes/user-budget.routes'; // Importar rutas de presupuesto del usuario
 import suppliersRoutes from './routes/suppliers.routes'; // Importar rutas de proveedores
+import productosRoutes from './routes/productos.routes'; // Importar rutas de productos
+import productosProveedoresRoutes from './routes/productos-proveedores.routes'; // Importar rutas de productos-proveedores
 
 // Cargar variables de entorno (importante hacerlo antes de usar process.env)
 dotenv.config();
@@ -55,6 +57,8 @@ app.use('/api/orders', ordersRoutes); // Montar rutas de órdenes de compra
 app.use('/api/notifications', notificationsRoutes); // Montar rutas de notificaciones
 app.use('/api/me', userBudgetRoutes); // Montar rutas de presupuesto del usuario
 app.use('/api/suppliers', suppliersRoutes); // Montar rutas de proveedores
+app.use('/api/productos', productosRoutes); // Montar rutas de productos
+app.use('/api/productos', productosProveedoresRoutes); // Montar rutas de productos-proveedores
 
 // Ruta de prueba raíz (opcional)
 app.get('/', (_req: any, res: any) => {

@@ -9,6 +9,9 @@ export interface User {
   createdAt: string;
   avatar?: string;
   initials?: string;
+  rol_id?: number; // Añadir rol_id
+  area_id?: number | null; // Añadir area_id
+  area_nombre?: string | null; // Añadir area_nombre (opcional, si se usa)
 }
 
 export interface Role {
@@ -34,4 +37,10 @@ export interface UserFilters {
   status: string;
   searchTerm: string;
   activeTab: string;
+}
+
+// Añadir la interfaz Area si no existe en otro lugar
+export interface Area {
+  id: number;
+  nombre: string;
 }

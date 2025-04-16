@@ -21,9 +21,8 @@ export const getBudgetCodes = async (req: AuthenticatedRequest, res: Response): 
 
     let query = `
       SELECT
-        cp.*,
-        (cp.monto_presupuesto * 0.7) AS monto_disponible, -- Placeholder temporal
-        CASE WHEN cp.monto_presupuesto > 10000 THEN 'Activo' ELSE 'Agotado' END AS estado -- Placeholder temporal
+        cp.* -- Seleccionar todas las columnas existentes, incluyendo monto_disponible
+        -- El estado se puede determinar en el frontend basado en monto_disponible > 0 o fechas de vigencia
       FROM codigos_presupuestales cp
     `;
     const queryParams: any[] = [];
@@ -82,7 +81,7 @@ export const getBudgetCodeById = async (req: Request, res: Response): Promise<Re
 };
 
 // --- Crear un nuevo Código Presupuestal ---
-export const createBudgetCode = async (req: Request, res: Response): Promise<Response> => { // Usar Request estándar aquí
+export const createBudgetCode = async (req: AuthenticatedRequest, res: Response): Promise<Response> => { // Usar AuthenticatedRequest si se necesita el usuario para el historial
    const {
      nombre,
      descripcion,
@@ -90,6 +89,7 @@ export const createBudgetCode = async (req: Request, res: Response): Promise<Res
      fecha_inicio_vigencia,
      fecha_fin_vigencia
    } = req.body;
+   const userId = req.user?.id; // Obtener ID del usuario para el historial
 
    // Validación básica
    if (!nombre || monto_presupuesto === undefined || monto_presupuesto === null) {
@@ -97,8 +97,8 @@ export const createBudgetCode = async (req: Request, res: Response): Promise<Res
    }
 
    const monto = parseFloat(monto_presupuesto);
-   if (isNaN(monto)) {
-      return res.status(400).json({ message: 'Monto Presupuesto debe ser un número válido.' });
+   if (isNaN(monto) || monto < 0) { // Asegurar que el monto no sea negativo
+      return res.status(400).json({ message: 'Monto Presupuesto debe ser un número válido y no negativo.' });
    }
 
    // Validación de fechas
@@ -123,30 +123,51 @@ export const createBudgetCode = async (req: Request, res: Response): Promise<Res
      finVigencia = fecha_fin_vigencia;
    }
 
-
    let client: PoolClient | null = null;
    try {
      client = await pool.connect();
-     const query = `
+     await client.query('BEGIN'); // Iniciar transacción
+
+     // Insertar el código presupuestal inicializando monto_disponible
+     const insertBudgetQuery = `
        INSERT INTO codigos_presupuestales
-         (nombre, descripcion, monto_presupuesto, fecha_inicio_vigencia, fecha_fin_vigencia)
+         (nombre, descripcion, monto_presupuesto, fecha_inicio_vigencia, fecha_fin_vigencia, monto_disponible)
        VALUES
-         ($1, $2, $3, $4, $5)
+         ($1, $2, $3, $4, $5, $3) -- monto_disponible = monto_presupuesto
        RETURNING *
      `;
-     const params = [ nombre, descripcion || null, monto, inicioVigencia, finVigencia ];
+     const budgetParams = [ nombre, descripcion || null, monto, inicioVigencia, finVigencia ];
+     const budgetResult: QueryResult = await client.query(insertBudgetQuery, budgetParams);
+     const newBudgetCode = budgetResult.rows[0];
 
-     const result: QueryResult = await client.query(query, params);
+     // Insertar registro en el historial
+     const insertHistoryQuery = `
+       INSERT INTO historial_presupuesto
+         (cp_id, tipo_movimiento, monto_cambio, monto_anterior, monto_nuevo, usuario_id, descripcion)
+       VALUES
+         ($1, $2, $3, $4, $5, $6, $7)
+     `;
+     const historyParams = [
+       newBudgetCode.id,
+       'ASIGNACION_INICIAL',
+       monto, // monto_cambio
+       0,     // monto_anterior
+       monto, // monto_nuevo
+       userId || null, // ID del usuario que crea, si está disponible
+       'Creación de código presupuestal'
+     ];
+     await client.query(insertHistoryQuery, historyParams);
 
-     return res.status(201).json(result.rows[0]);
+     await client.query('COMMIT'); // Confirmar transacción
+
+     return res.status(201).json(newBudgetCode);
 
    } catch (error: any) {
+     await client?.query('ROLLBACK'); // Revertir transacción en caso de error
      console.error('Error al crear código presupuestal:', error);
      if (error.code === '23505' && error.constraint === 'codigos_presupuestales_nombre_key') {
         return res.status(409).json({ message: `El nombre de código presupuestal "${nombre}" ya existe.` });
      }
-     // Manejar error de FK si se intenta asociar a algo que no existe (aunque no aplica aquí directamente)
-     // if (error.code === '23503') { ... }
      return res.status(500).json({ message: 'Error interno del servidor.' });
    } finally {
      client?.release();
@@ -237,7 +258,7 @@ export const getAreasByBudgetCode = async (req: Request, res: Response) => { // 
     const result = await client.query(
       `SELECT a.*
        FROM areas a
-       JOIN area_codigos_presupuestales acp ON a.id = acp.area_id
+       JOIN areas_codigos_presupuestales acp ON a.id = acp.area_id -- Usar la tabla correcta
        WHERE acp.cp_id = $1
        ORDER BY a.nombre ASC`,
       [id]

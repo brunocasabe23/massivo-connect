@@ -7,15 +7,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Role } from '../types';
 
+interface Area {
+  id: number;
+  nombre: string;
+}
+
 interface UserFiltersProps {
   searchTerm: string;
   filterRole: string;
   filterStatus: string;
+  filterArea: string;
   isFilterPopoverOpen: boolean;
   rolesApi: Role[];
+  areasApi: Area[];
   onSearchChange: (value: string) => void;
   onFilterRoleChange: (value: string) => void;
   onFilterStatusChange: (value: string) => void;
+  onFilterAreaChange: (value: string) => void;
   onFilterPopoverOpenChange: (open: boolean) => void;
   onClearFilters: () => void;
 }
@@ -24,11 +32,14 @@ export const UserFilters: React.FC<UserFiltersProps> = ({
   searchTerm,
   filterRole,
   filterStatus,
+  filterArea,
   isFilterPopoverOpen,
   rolesApi,
+  areasApi,
   onSearchChange,
   onFilterRoleChange,
   onFilterStatusChange,
+  onFilterAreaChange,
   onFilterPopoverOpenChange,
   onClearFilters
 }) => {
@@ -36,11 +47,11 @@ export const UserFilters: React.FC<UserFiltersProps> = ({
     <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b">
       <div className="relative w-full md:w-80 mb-4 md:mb-0">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input 
-          placeholder="Buscar usuarios..." 
-          className="pl-10 w-full" 
-          value={searchTerm} 
-          onChange={(e) => onSearchChange(e.target.value)} 
+        <Input
+          placeholder="Buscar usuarios..."
+          className="pl-10 w-full"
+          value={searchTerm}
+          onChange={(e) => onSearchChange(e.target.value)}
         />
       </div>
       <div className="flex items-center gap-2">
@@ -49,7 +60,7 @@ export const UserFilters: React.FC<UserFiltersProps> = ({
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm">
               <Filter className="mr-2 h-4 w-4" />Filtrar
-              {(filterRole && filterRole !== 'all' || filterStatus && filterStatus !== 'all') && 
+              {(filterRole && filterRole !== 'all' || filterStatus && filterStatus !== 'all' || filterArea && filterArea !== 'all') &&
                 <span className="ml-1.5 h-2 w-2 rounded-full bg-blue-500"></span>
               }
             </Button>
@@ -90,13 +101,29 @@ export const UserFilters: React.FC<UserFiltersProps> = ({
                     <SelectItem value="Inactivo">Inactivo</SelectItem>
                   </SelectContent>
                 </Select>
+                {/* Filtro por Área */}
+                <Label htmlFor="filter-area">Área</Label>
+                <Select value={filterArea} onValueChange={onFilterAreaChange}>
+                  <SelectTrigger id="filter-area" className="h-8">
+                    <SelectValue placeholder="Todas las áreas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las áreas</SelectItem>
+                    <SelectItem value="none">Sin área</SelectItem>
+                    {(areasApi || []).map((area) => (
+                      <SelectItem key={area.id} value={area.id.toString()}>
+                        {area.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex justify-end gap-2 mt-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={onClearFilters}
-                  disabled={filterRole === "all" && filterStatus === "all"}
+                  disabled={filterRole === "all" && filterStatus === "all" && filterArea === "all"}
                 >
                   Limpiar
                 </Button>

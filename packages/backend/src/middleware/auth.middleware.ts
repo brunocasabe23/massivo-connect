@@ -70,7 +70,7 @@ export const authenticateToken = async (req: any, res: any, next: any) => {
               ...user,
               area_id: dbUser.area_id,
               permisos: userPermissions,
-              rolNombre: userRoleName // Añadir el nombre del rol
+              rol: userRoleName // Usar 'rol' para coincidir con frontend
             };
 
       next(); // Pasar al siguiente middleware o controlador

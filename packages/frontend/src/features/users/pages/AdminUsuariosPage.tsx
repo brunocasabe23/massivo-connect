@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserPlus, UserCheck, UserX } from 'lucide-react';
+import { UserPlus } from 'lucide-react'; // UserCheck, UserX no se usan directamente aquí
 import { useUsers } from '../hooks/useUsers';
 import { UserFilters } from '../components/UserFilters';
 import { UsersTable } from '../components/UsersTable';
 import { CreateUserDialog } from '../components/CreateUserDialog';
+import { EditUserDialog } from '../components/EditUserDialog'; // Importar EditUserDialog
 import { DeleteUserDialog } from '../components/DeleteUserDialog';
 import { UserPermissionsDialog } from '../components/UserPermissionsDialog';
 import { ToggleUserStatusDialog } from '../components/ToggleUserStatusDialog';
@@ -21,6 +22,7 @@ export default function AdminUsuariosPage() {
     searchTerm,
     filterRole,
     filterStatus,
+    areasApi, // Obtener areasApi del hook
     isFilterPopoverOpen,
     activeTab,
     allPermissionsGrouped,
@@ -31,6 +33,7 @@ export default function AdminUsuariosPage() {
     setIsFilterPopoverOpen,
     setActiveTab,
     deleteUser,
+    updateUser, // Obtener updateUser del hook
     updateUserRole,
     fetchRolePermissions,
     fetchUserDirectPermissions,
@@ -42,7 +45,9 @@ export default function AdminUsuariosPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
   const [isToggleStatusDialogOpen, setIsToggleStatusDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false); // Estado para diálogo de edición
+  const [selectedUser, setSelectedUser] = useState<User | null>(null); // Reutilizar para todos los diálogos que necesitan un usuario
+  const [userToEdit, setUserToEdit] = useState<User | null>(null); // Estado específico para usuario a editar
 
   // Manejadores de eventos
   const handleOpenCreateDialog = () => {
@@ -56,12 +61,20 @@ export default function AdminUsuariosPage() {
 
   const handleOpenPermissionsDialog = (user: User) => {
     setSelectedUser(user);
+    setSelectedUser(user); // Mantener para otros diálogos si es necesario
     setIsPermissionsDialogOpen(true);
   };
 
   const handleOpenToggleStatusDialog = (user: User) => {
     setSelectedUser(user);
+    setSelectedUser(user); // Mantener para otros diálogos si es necesario
     setIsToggleStatusDialogOpen(true);
+  };
+
+  // Nueva función para abrir el diálogo de edición
+  const handleOpenEditDialog = (user: User) => {
+    setUserToEdit(user);
+    setIsEditDialogOpen(true);
   };
 
   const handleDeleteUser = async () => {
@@ -137,11 +150,14 @@ export default function AdminUsuariosPage() {
             searchTerm={searchTerm}
             filterRole={filterRole}
             filterStatus={filterStatus}
+            filterArea="all"
             isFilterPopoverOpen={isFilterPopoverOpen}
             rolesApi={rolesApi}
+            areasApi={[]}
             onSearchChange={setSearchTerm}
             onFilterRoleChange={setFilterRole}
             onFilterStatusChange={setFilterStatus}
+            onFilterAreaChange={() => {}}
             onFilterPopoverOpenChange={setIsFilterPopoverOpen}
             onClearFilters={handleClearFilters}
           />
@@ -150,7 +166,7 @@ export default function AdminUsuariosPage() {
             loading={loading}
             error={error}
             users={filteredUsers}
-            onEditUser={(user) => console.log('Editar usuario:', user)}
+            onEditUser={handleOpenEditDialog} // Pasar la nueva función
             onManagePermissions={handleOpenPermissionsDialog}
             onToggleUserStatus={handleOpenToggleStatusDialog}
             onDeleteUser={handleOpenDeleteDialog}
@@ -190,6 +206,16 @@ export default function AdminUsuariosPage() {
         onOpenChange={setIsToggleStatusDialogOpen}
         selectedUser={selectedUser}
         onConfirmToggle={handleToggleUserStatus}
+      />
+
+      {/* Añadir el diálogo de edición */}
+      <EditUserDialog
+        isOpen={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        userToEdit={userToEdit}
+        roles={rolesApi}
+        areas={areasApi} // Pasar areasApi
+        onUpdateUser={updateUser} // Pasar la función updateUser del hook
       />
     </div>
   );

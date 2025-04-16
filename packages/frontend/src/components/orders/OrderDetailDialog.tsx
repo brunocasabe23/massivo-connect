@@ -28,7 +28,8 @@ interface OrderDetail {
   descripcion: string;
   monto: number;
   moneda?: string;
-  proveedor?: string;
+  proveedor_id?: number; // Cambiado a ID
+  proveedor_nombre?: string; // Nuevo campo con nombre
   producto?: string;
   cantidad?: number;
   precio_unitario?: number;
@@ -163,7 +164,7 @@ export function OrderDetailDialog({ order, open, onOpenChange, onOrderUpdated }:
               </div>
               <div>
                 <span className="text-sm font-medium">Proveedor:</span>
-                <p className="text-sm">{order.proveedor || 'No especificado'}</p>
+                <p className="text-sm">{order.proveedor_nombre || 'No especificado'}</p> {/* Mostrar nombre */}
               </div>
               <div>
                 <span className="text-sm font-medium">Cantidad:</span>

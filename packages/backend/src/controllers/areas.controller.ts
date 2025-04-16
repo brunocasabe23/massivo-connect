@@ -12,16 +12,11 @@ export const getAreas = async (_req: Request, res: Response) => { // Usar tipos 
   try {
     client = await pool.connect();
     // Modificar consulta para incluir presupuesto asignado
+    // Consulta simplificada para obtener solo id y nombre, evitando posibles errores en JOIN/GROUP BY
     const result = await client.query(`
-      SELECT
-        a.*,
-        COALESCE(SUM(cp.monto_presupuesto), 0) AS presupuesto_asignado,
-        COUNT(acp.cp_id) AS codigos_count
-      FROM areas a
-      LEFT JOIN area_codigos_presupuestales acp ON a.id = acp.area_id
-      LEFT JOIN codigos_presupuestales cp ON acp.cp_id = cp.id
-      GROUP BY a.id
-      ORDER BY a.nombre ASC
+      SELECT id, nombre
+      FROM areas
+      ORDER BY nombre ASC
     `);
     return res.json(result.rows);
   } catch (error) {

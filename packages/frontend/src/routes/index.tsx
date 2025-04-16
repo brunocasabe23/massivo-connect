@@ -21,6 +21,7 @@ import CentroComprasPage from '../pages/Compras/CentroCompras/CentroComprasPage'
 import ComprasLayout from '../pages/Compras/ComprasLayout'; // Importar el nuevo Layout
 import SolicitudesPage from '../pages/Compras/SolicitudesPage'; // Importar la página de Solicitudes
 import ProveedoresPage from '../pages/Compras/Proveedores/ProveedoresPage'; // Actualizado: Importar página de Proveedores desde Compras
+import ProductosPage from '../pages/Productos/ProductosPage'; // Importar página de Productos
 
 // Componente wrapper para el layout principal protegido solo por autenticación
 const ProtectedMainLayout = () => (
@@ -107,6 +108,10 @@ const router = createBrowserRouter([
       {
         path: '/codigos-presupuestales/areas',
         element: <ProtectedRoute requiredPermission="ver_areas"><AreasPage /></ProtectedRoute>,
+      },
+      {
+        path: '/productos', // Nueva ruta para gestión de productos
+        element: <ProtectedRoute requiredPermission="ver_productos"><ProductosPage /></ProtectedRoute>,
       },
     ]
   },

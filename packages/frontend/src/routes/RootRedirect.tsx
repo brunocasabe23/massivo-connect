@@ -14,9 +14,13 @@ const RootRedirect: React.FC = () => {
   }
 
   // Redirigir según el rol si está autenticado
+  console.log('[RootRedirect] User Role:', user?.rol); // Log para depurar el rol
   if (user?.rol === 'Administrador') {
     return <Navigate to="/admin" replace />;
+  } else if (user?.rol === 'Usuario') { // Añadir condición para rol Usuario
+    return <Navigate to="/compras" replace />; // Redirigir a /compras (Solicitudes)
   } else {
+    // Otros roles (ej. Compras, Supervisor) van al dashboard general
     return <Navigate to="/dashboard" replace />;
   }
 };

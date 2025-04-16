@@ -41,51 +41,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { callApi } from "@/services/api";
-
-// Interfaces
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string; // Viene de r.nombre
-  rol_id?: number; // Añadido desde la API (ur.rol_id)
-  status: string; // Viene de u.estado
-  createdAt: string; // Viene de u.fecha_creacion
-  avatar?: string; // Viene de u.avatar_url
-  initials?: string; // Generado en frontend
-  area_id?: number | null; // Añadido desde la API (u.area_id)
-  area_nombre?: string | null; // Añadido desde la API (a.nombre)
-}
-
-interface Role {
-  id: string;
-  name: string;
-  permissions: number;
-}
-
-interface Permission {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-}
-
-interface PermissionCategory {
-  name: string;
-  permissions: Permission[];
-}
-
-interface Area {
-  id: number;
-  nombre: string;
-}
+import { EditUserDialog } from "../components/EditUserDialog"; // Importar el nuevo diálogo
+// Importar tipos desde el archivo central. Ajustar ruta si es necesario.
+import { User, Role, Area, Permission, PermissionCategory } from '@/types/admin';
 
 export default function AdminUsuariosPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterArea, setFilterArea] = useState<string>("all");
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false); // Para Crear/Editar Usuario
+  const [isDialogOpen, setIsDialogOpen] = useState(false); // Para Crear Usuario
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false); // Para Editar Usuario
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false); // Para Gestionar Permisos
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null); // Para Permisos/Eliminar
@@ -156,6 +123,15 @@ export default function AdminUsuariosPage() {
         if (activeTab === "administradores" && user.role !== "Administrador") return false; // Ajustar si el nombre del rol es diferente
         if (filterRole && filterRole !== 'all' && user.role !== filterRole) return false;
         if (filterStatus && filterStatus !== 'all' && user.status.toLowerCase() !== filterStatus.toLowerCase()) return false;
+        if (filterArea && filterArea !== 'all') {
+          if (filterArea === 'none') {
+            // Filtrar usuarios sin área asignada
+            if (user.area_id !== null) return false;
+          } else {
+            // Filtrar por ID de área específica
+            if (user.area_id !== parseInt(filterArea)) return false;
+          }
+        }
         return true;
       })
       .filter(
@@ -164,7 +140,7 @@ export default function AdminUsuariosPage() {
           user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
           user.role.toLowerCase().includes(searchTerm.toLowerCase()))
       );
-  }, [usuarios, activeTab, searchTerm, filterRole, filterStatus]);
+  }, [usuarios, activeTab, searchTerm, filterRole, filterStatus, filterArea]);
 
   // --- Permission Handling ---
   const fetchRolePermissions = async (roleId: string | undefined) => {
@@ -346,93 +322,120 @@ export default function AdminUsuariosPage() {
   };
 
   const openEditUserDialog = (user: User) => {
-    setEditingUser(user);
+    console.log('openEditUserDialog called with user:', user);
+    // Primero establecer los datos del formulario
     setFormData({
       ...user, // Precargar datos existentes
       selectedRoleIdForm: user.rol_id?.toString() || '', // Usar rol_id del usuario
       area_id: user.area_id, // Usar area_id del usuario
       password: '', // No precargar contraseña
     });
-    setIsDialogOpen(true);
+
+    // Luego establecer el usuario que se está editando
+    setEditingUser(user);
+
+    // Abrir el diálogo de edición (no el diálogo principal)
+    setIsEditDialogOpen(true);
   };
 
-  const handleSaveUser = async () => {
-    // Validación
-    if (!formData.name || !formData.email || (!editingUser && !formData.password) || !formData.selectedRoleIdForm) {
+  // Función unificada para guardar (Crear o Actualizar)
+  // Devuelve true si la operación fue exitosa, false si falló
+  const handleSaveUser = async (isEditing: boolean = false): Promise<boolean> => {
+    const userToSave = isEditing ? editingUser : null;
+    const userId = userToSave?.id;
+
+    // Validación (usa formData que se actualiza desde ambos diálogos)
+    if (!formData.name || !formData.email || (!userId && !formData.password) || !formData.selectedRoleIdForm) {
       toast({
         title: "Campos requeridos",
-        description: `Por favor, completa Nombre, Email, Rol y ${editingUser ? '' : 'Contraseña'}.`,
+        description: `Por favor, completa Nombre, Email, Rol y ${userId ? '' : 'Contraseña'}.`,
         variant: "destructive",
       });
-      return;
+      return false; // Indicar fallo
     }
 
-    // TODO: Añadir indicador de carga
+    // TODO: Añadir indicador de carga visual en los diálogos
     try {
       let savedUser;
-      const dataToSend: any = { // Usar 'any' temporalmente o crear interfaz específica
+      const dataToSend: any = {
         nombre: formData.name,
         email: formData.email,
         rol_id: parseInt(formData.selectedRoleIdForm),
         area_id: formData.area_id || null,
         estado: formData.status || 'activo',
       };
+
       // Solo enviar contraseña si se está creando o si se ingresó una nueva al editar
-      if (!editingUser || (editingUser && formData.password)) {
-         if (!formData.password && !editingUser) { // Requerir contraseña solo al crear
-             toast({ title: "Error", description: "La contraseña es requerida para crear un nuevo usuario.", variant: "destructive" });
-             return;
-         }
-         if (formData.password) { // Solo incluir si no está vacía
-            dataToSend.password = formData.password;
-         }
+      if (!userId || (userId && formData.password)) {
+        if (!formData.password && !userId) { // Requerir contraseña solo al crear
+          toast({ title: "Error", description: "La contraseña es requerida para crear un nuevo usuario.", variant: "destructive" });
+          return false; // Indicar fallo
+        }
+        if (formData.password) { // Solo incluir si no está vacía
+          dataToSend.password = formData.password;
+        }
       }
 
-
-      if (editingUser) {
-        savedUser = await callApi(`/admin/users/${editingUser.id}`, { method: 'PUT', data: dataToSend });
-        toast({ title: "Usuario Actualizado", description: `El usuario ${savedUser.nombre} ha sido actualizado.` });
+      if (userId) {
+        // Actualizar usuario existente
+        savedUser = await callApi(`/admin/users/${userId}`, { method: 'PUT', data: dataToSend });
+        // No mostramos toast aquí, lo hará el diálogo de edición si tiene éxito
       } else {
+        // Crear nuevo usuario
         savedUser = await callApi('/admin/users', { method: 'POST', data: dataToSend });
         toast({ title: "Usuario Creado", description: `El usuario ${savedUser.nombre} ha sido creado exitosamente.` });
       }
 
       // Actualizar lista local
       const roleName = rolesApi.find(r => r.id === formData.selectedRoleIdForm)?.name || 'Desconocido';
-      const areaNombre = areasApi.find(a => a.id === dataToSend.area_id)?.nombre || null; // Obtener nombre del área
+      const areaNombre = areasApi.find(a => a.id === dataToSend.area_id)?.nombre || null;
       const updatedUser: User = {
-          id: savedUser.id,
-          name: savedUser.nombre,
-          email: savedUser.email,
-          role: roleName,
-          rol_id: dataToSend.rol_id, // Guardar rol_id
-          status: savedUser.estado,
-          createdAt: editingUser ? editingUser.createdAt : savedUser.fecha_creacion,
-          avatar: savedUser.avatar_url,
-          area_id: dataToSend.area_id, // Guardar area_id
-          area_nombre: areaNombre, // Guardar area_nombre
+        id: savedUser.id,
+        name: savedUser.nombre,
+        email: savedUser.email,
+        role: roleName,
+        rol_id: dataToSend.rol_id,
+        status: savedUser.estado,
+        createdAt: userToSave ? userToSave.createdAt : savedUser.fecha_creacion,
+        avatar: savedUser.avatar_url,
+        area_id: dataToSend.area_id,
+        area_nombre: areaNombre,
       };
 
-      if (editingUser) {
-          setUsuarios(prev => prev.map(u => u.id === editingUser.id ? updatedUser : u));
+      if (userId) {
+        setUsuarios(prev => prev.map(u => u.id === userId ? updatedUser : u));
       } else {
-          setUsuarios(prev => [updatedUser, ...prev]);
+        setUsuarios(prev => [updatedUser, ...prev]);
       }
 
-      setIsDialogOpen(false);
-      setFormData({});
+      // Cerrar el diálogo correspondiente y limpiar estados
+      if (userId) {
+         // El diálogo de edición se cierra a sí mismo en caso de éxito (onUpdateUser devuelve true)
+      } else {
+        setIsDialogOpen(false);
+      }
+      setFormData({}); // Limpiar formData después de guardar
       setEditingUser(null);
+      return true; // Indicar éxito
 
     } catch (err) {
-      console.error(`Error ${editingUser ? 'actualizando' : 'creando'} usuario:`, err);
+      console.error(`Error ${userId ? 'actualizando' : 'creando'} usuario:`, err);
       toast({
-        title: `Error al ${editingUser ? 'actualizar' : 'crear'} usuario`,
+        title: `Error al ${userId ? 'actualizar' : 'crear'} usuario`,
         description: err instanceof Error ? err.message : "Error desconocido",
         variant: "destructive",
       });
+      return false; // Indicar fallo
     } finally {
       // TODO: Ocultar indicador de carga
     }
+  };
+
+  // --- Función para limpiar filtros ---
+  const handleClearFilters = () => {
+    setFilterRole("all");
+    setFilterStatus("all");
+    setFilterArea("all");
   };
 
   // --- Badge Color Helpers ---
@@ -456,87 +459,108 @@ export default function AdminUsuariosPage() {
         <p className="text-slate-500">Administra los usuarios del sistema y sus roles</p>
       </div>
 
-      {/* Botón Nuevo Usuario */}
+      {/* Botones de acción */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-        <div className="flex-1"></div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingUser(null); }}>
-          <DialogTrigger asChild>
-            <Button className="mt-4 md:mt-0 bg-[#005291] hover:bg-[#004277] transition-colors" onClick={openNewUserDialog}>
-              <UserPlus className="mr-2 h-4 w-4" />Nuevo Usuario
+        <div className="flex-1">
+          {/* Botón de prueba para editar el primer usuario */}
+          {usuarios.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                const testUser = usuarios[0];
+                console.log('Test edit button clicked for user:', testUser);
+                setEditingUser(testUser);
+                setFormData({
+                  ...testUser,
+                  selectedRoleIdForm: testUser.rol_id?.toString() || '',
+                  area_id: testUser.area_id,
+                  password: '',
+                });
+                setIsEditDialogOpen(true);
+              }}
+            >
+              Editar Primer Usuario (Prueba)
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[550px]">
-            <DialogHeader>
-              <DialogTitle>{editingUser ? "Editar Usuario" : "Crear Nuevo Usuario"}</DialogTitle>
-              <DialogDescription>
-                {editingUser ? `Modifica los datos del usuario ${editingUser.name}.` : "Completa el formulario para crear un nuevo usuario."}
-              </DialogDescription>
-            </DialogHeader>
-            {/* Formulario Crear/Editar Usuario */}
-            <div className="grid gap-4 py-4">
-              {/* Nombre */}
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="col-span-4">Nombre completo *</Label>
-                <Input id="name" placeholder="Nombre y apellidos" className="col-span-4" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
-              </div>
-              {/* Email */}
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="col-span-4">Correo electrónico *</Label>
-                <div className="relative col-span-4">
-                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <Input id="email" type="email" placeholder="correo@empresa.com" className="pl-10" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
-                </div>
-              </div>
-              {/* Área */}
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="area" className="col-span-4">Área</Label>
-                <Select value={formData.area_id?.toString() || ''} onValueChange={(value) => setFormData({...formData, area_id: value ? parseInt(value) : null })}>
-                  <SelectTrigger className="col-span-4"><SelectValue placeholder="Seleccionar área" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Sin área</SelectItem>
-                    {areasApi.map((area) => (
-                      <SelectItem key={area.id} value={area.id.toString()}>{area.nombre}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Rol y Estado */}
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="role" className="col-span-2">Rol *</Label>
-                <Label htmlFor="status" className="col-span-2">Estado</Label>
-                <Select value={formData.selectedRoleIdForm || ''} onValueChange={(value) => setFormData({...formData, selectedRoleIdForm: value})}>
-                  <SelectTrigger className="col-span-2"><SelectValue placeholder="Seleccionar rol" /></SelectTrigger>
-                  <SelectContent>
-                    {rolesApi.map((role: Role) => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={formData.status || 'activo'} onValueChange={(value) => setFormData({...formData, status: value})}>
-                  <SelectTrigger className="col-span-2"><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="activo">Activo</SelectItem>
-                    <SelectItem value="inactivo">Inactivo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Contraseña */}
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="password" className="col-span-4">{editingUser ? "Nueva Contraseña (opcional)" : "Contraseña *"}</Label>
-                <div className="relative col-span-4">
-                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <Input id="password" type={showPassword ? "text" : "password"} placeholder={editingUser ? "Dejar vacío para no cambiar" : "••••••••"} className="pl-10" value={formData.password || ''} onChange={(e) => setFormData({...formData, password: e.target.value})} required={!editingUser} />
-                  <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+          )}
+        </div>
+        <Button className="mt-4 md:mt-0 bg-[#005291] hover:bg-[#004277] transition-colors" onClick={openNewUserDialog}>
+          <UserPlus className="mr-2 h-4 w-4" />Nuevo Usuario
+        </Button>
+      </div>
+
+      {/* Diálogo Crear Usuario */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+            <DialogDescription>
+              Completa el formulario para crear un nuevo usuario.
+            </DialogDescription>
+          </DialogHeader>
+          {/* Formulario Crear/Editar Usuario */}
+          <div className="grid gap-4 py-4">
+            {/* Nombre */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="col-span-4">Nombre completo *</Label>
+              <Input id="name" placeholder="Nombre y apellidos" className="col-span-4" value={formData.name || ''} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
+            </div>
+            {/* Email */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="col-span-4">Correo electrónico *</Label>
+              <div className="relative col-span-4">
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Input id="email" type="email" placeholder="correo@empresa.com" className="pl-10" value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setIsDialogOpen(false); setEditingUser(null); }}>Cancelar</Button>
-              <Button className="bg-[#005291]" onClick={handleSaveUser}>{editingUser ? "Guardar Cambios" : "Crear Usuario"}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            {/* Área */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="area" className="col-span-4">Área</Label>
+              <Select value={formData.area_id?.toString() || ''} onValueChange={(value) => setFormData({...formData, area_id: value ? parseInt(value) : null })}>
+                <SelectTrigger className="col-span-4"><SelectValue placeholder="Seleccionar área" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sin área</SelectItem>
+                  {areasApi.map((area) => (
+                    <SelectItem key={area.id} value={area.id.toString()}>{area.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Rol y Estado */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="col-span-2">Rol *</Label>
+              <Label htmlFor="status" className="col-span-2">Estado</Label>
+              <Select value={formData.selectedRoleIdForm || ''} onValueChange={(value) => setFormData({...formData, selectedRoleIdForm: value})}>
+                <SelectTrigger className="col-span-2"><SelectValue placeholder="Seleccionar rol" /></SelectTrigger>
+                <SelectContent>
+                  {rolesApi.map((role: Role) => <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={formData.status || 'activo'} onValueChange={(value) => setFormData({...formData, status: value})}>
+                <SelectTrigger className="col-span-2"><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="activo">Activo</SelectItem>
+                  <SelectItem value="inactivo">Inactivo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Contraseña */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="password" className="col-span-4">{editingUser ? "Nueva Contraseña (opcional)" : "Contraseña *"}</Label>
+              <div className="relative col-span-4">
+                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <Input id="password" type={showPassword ? "text" : "password"} placeholder={editingUser ? "Dejar vacío para no cambiar" : "••••••••"} className="pl-10" value={formData.password || ''} onChange={(e) => setFormData({...formData, password: e.target.value})} required={!editingUser} />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+            <Button className="bg-[#005291]" onClick={() => { handleSaveUser(false); }}>Crear Usuario</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Tabs y Tabla */}
       <Tabs defaultValue="todos" value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -549,80 +573,98 @@ export default function AdminUsuariosPage() {
          </TabsList>
 
         <div className="bg-card rounded-lg border shadow-sm">
-          {/* ... (Barra de búsqueda y filtros sin cambios) ... */}
-           <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b">
-             <div className="relative w-full md:w-80 mb-4 md:mb-0">
-               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-               <Input placeholder="Buscar usuarios..." className="pl-10 w-full" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-             </div>
-             <div className="flex items-center gap-2">
-               {/* Popover para Filtros */}
-               <Popover open={isFilterPopoverOpen} onOpenChange={setIsFilterPopoverOpen}>
-                 <PopoverTrigger asChild>
-                   <Button variant="outline" size="sm">
-                     <Filter className="mr-2 h-4 w-4" />Filtrar
-                     {(filterRole && filterRole !== 'all' || filterStatus && filterStatus !== 'all') && <span className="ml-1.5 h-2 w-2 rounded-full bg-blue-500"></span>} {/* Indicador de filtro activo */}
-                   </Button>
-                 </PopoverTrigger>
-                 <PopoverContent className="w-60 p-4" align="end">
-                   <div className="grid gap-4">
-                     <div className="space-y-2">
-                       <h4 className="font-medium leading-none">Filtros</h4>
-                       <p className="text-sm text-muted-foreground">
-                         Aplica filtros adicionales a la tabla.
-                       </p>
-                     </div>
-                     <div className="grid gap-2">
-                       {/* Filtro por Rol */}
-                       <Label htmlFor="filter-role">Rol</Label>
-                       <Select value={filterRole} onValueChange={setFilterRole}>
-                         <SelectTrigger id="filter-role" className="h-8">
-                           <SelectValue placeholder="Todos los roles" />
-                         </SelectTrigger>
-                         <SelectContent>
-                           <SelectItem value="all">Todos los roles</SelectItem>
-                           {rolesApi.map((role) => (
-                             <SelectItem key={role.id} value={role.name}> {/* Usar nombre del rol como valor */}
-                               {role.name}
-                             </SelectItem>
-                           ))}
-                         </SelectContent>
-                       </Select>
-                       {/* Filtro por Estado */}
-                       <Label htmlFor="filter-status">Estado</Label>
-                       <Select value={filterStatus} onValueChange={setFilterStatus}>
-                         <SelectTrigger id="filter-status" className="h-8">
-                           <SelectValue placeholder="Todos los estados" />
-                         </SelectTrigger>
-                         <SelectContent>
-                           <SelectItem value="all">Todos los estados</SelectItem>
-                           <SelectItem value="activo">Activo</SelectItem>
-                           <SelectItem value="inactivo">Inactivo</SelectItem>
-                         </SelectContent>
-                       </Select>
-                     </div>
-                     <div className="flex justify-end gap-2 mt-2">
-                        <Button
-                         variant="ghost"
-                         size="sm"
-                         onClick={() => {
-                           setFilterRole("all");
-                           setFilterStatus("all");
-                         }}
-                         disabled={filterRole === "all" && filterStatus === "all"} // Deshabilitar si no hay filtros aplicados
-                       >
-                         Limpiar
-                       </Button>
-                       <Button size="sm" onClick={() => setIsFilterPopoverOpen(false)}>
-                         Aplicar
-                       </Button>
-                     </div>
-                   </div>
-                 </PopoverContent>
-               </Popover>
-               {/* Fin Popover para Filtros */}
-             </div>
-           </div>
+          {/* Componente UserFilters */}
+          <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b">
+            <div className="relative w-full md:w-80 mb-4 md:mb-0">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Buscar usuarios..." className="pl-10 w-full" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Popover para Filtros */}
+              <Popover open={isFilterPopoverOpen} onOpenChange={setIsFilterPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Filter className="mr-2 h-4 w-4" />Filtrar
+                    {(filterRole && filterRole !== 'all' || filterStatus && filterStatus !== 'all' || filterArea && filterArea !== 'all') && <span className="ml-1.5 h-2 w-2 rounded-full bg-blue-500"></span>} {/* Indicador de filtro activo */}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-60 p-4" align="end">
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium leading-none">Filtros</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Aplica filtros adicionales a la tabla.
+                      </p>
+                    </div>
+                    <div className="grid gap-2">
+                      {/* Filtro por Rol */}
+                      <Label htmlFor="filter-role">Rol</Label>
+                      <Select value={filterRole} onValueChange={setFilterRole}>
+                        <SelectTrigger id="filter-role" className="h-8">
+                          <SelectValue placeholder="Todos los roles" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos los roles</SelectItem>
+                          {rolesApi.map((role) => (
+                            <SelectItem key={role.id} value={role.name}> {/* Usar nombre del rol como valor */}
+                              {role.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {/* Filtro por Estado */}
+                      <Label htmlFor="filter-status">Estado</Label>
+                      <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger id="filter-status" className="h-8">
+                          <SelectValue placeholder="Todos los estados" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos los estados</SelectItem>
+                          <SelectItem value="activo">Activo</SelectItem>
+                          <SelectItem value="inactivo">Inactivo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {/* Filtro por Área */}
+                      <Label htmlFor="filter-area">Área</Label>
+                      <Select value={filterArea} onValueChange={setFilterArea}>
+                        <SelectTrigger id="filter-area" className="h-8">
+                          <SelectValue placeholder="Todas las áreas" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas las áreas</SelectItem>
+                          <SelectItem value="none">Sin área</SelectItem>
+                          {/* Usar un array vacío para evitar el error */}
+                          {(areasApi || []).map((area) => (
+                            <SelectItem key={area.id} value={area.id.toString()}>
+                              {area.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setFilterRole("all");
+                          setFilterStatus("all");
+                          setFilterArea("all");
+                        }}
+                        disabled={filterRole === "all" && filterStatus === "all" && filterArea === "all"} // Deshabilitar si no hay filtros aplicados
+                      >
+                        Limpiar
+                      </Button>
+                      <Button size="sm" onClick={() => setIsFilterPopoverOpen(false)}>
+                        Aplicar
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {/* Fin Popover para Filtros */}
+            </div>
+          </div>
 
           <div className="overflow-x-auto">
             <Table>
@@ -660,7 +702,26 @@ export default function AdminUsuariosPage() {
                     return (
                       <TableRow key={user.id}>
                         <TableCell><Checkbox /></TableCell>
-                        <TableCell><div className="flex items-center gap-3"><Avatar>{user.avatar ? <AvatarImage src={user.avatar} /> : <AvatarFallback className="bg-gradient-to-br from-blue-500 to-[#005291] text-white">{initials}</AvatarFallback>}</Avatar><div className="font-medium">{user.name}</div></div></TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar>{user.avatar ? <AvatarImage src={user.avatar} /> : <AvatarFallback className="bg-gradient-to-br from-blue-500 to-[#005291] text-white">{initials}</AvatarFallback>}</Avatar>
+                            <div className="font-medium">{user.name}</div>
+                            <Button variant="outline" size="sm" onClick={() => {
+                              console.log('Direct edit button clicked for user:', user);
+                              // Abrir directamente el modal de edición
+                              setEditingUser(user);
+                              setFormData({
+                                ...user,
+                                selectedRoleIdForm: user.rol_id?.toString() || '',
+                                area_id: user.area_id,
+                                password: '',
+                              });
+                              setIsEditDialogOpen(true);
+                            }}>
+                              <Edit className="h-3 w-3 mr-1" /> Editar
+                            </Button>
+                          </div>
+                        </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell><Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge></TableCell>
                         <TableCell>{user.area_nombre || '-'}</TableCell> {/* Mostrar nombre del área */}
@@ -670,7 +731,18 @@ export default function AdminUsuariosPage() {
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditUserDialog(user)}><Edit className="mr-2 h-4 w-4" />Editar</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                console.log('Edit button clicked for user:', user);
+                                // Abrir directamente el modal de edición
+                                setEditingUser(user);
+                                setFormData({
+                                  ...user,
+                                  selectedRoleIdForm: user.rol_id?.toString() || '',
+                                  area_id: user.area_id,
+                                  password: '',
+                                });
+                                setIsEditDialogOpen(true);
+                              }}><Edit className="mr-2 h-4 w-4" />Editar</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenRoleDialog(user)}><ShieldCheck className="mr-2 h-4 w-4" />Gestionar permisos</DropdownMenuItem>
                               {user.status === "Activo" ? (<DropdownMenuItem onClick={() => handleDeactivateUser(user.id)}><UserX className="mr-2 h-4 w-4" />Desactivar</DropdownMenuItem>) : (<DropdownMenuItem onClick={() => handleActivateUser(user.id)}><UserCheck className="mr-2 h-4 w-4" />Activar</DropdownMenuItem>)}
                               <DropdownMenuItem className="text-red-500" onClick={() => handleOpenDeleteDialog(user)}><Trash className="mr-2 h-4 w-4" />Eliminar</DropdownMenuItem>
@@ -770,6 +842,39 @@ export default function AdminUsuariosPage() {
            </DialogFooter>
          </DialogContent>
       </Dialog>
+
+      {/* Renderizar el componente EditUserDialog */}
+      {/* Asegurarse de que la ruta de importación sea correcta si EditUserDialog no está en ../components */}
+      <EditUserDialog
+        isOpen={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            setEditingUser(null); // Limpiar usuario en edición al cerrar
+            setFormData({}); // Limpiar formulario al cerrar
+          }
+        }}
+        userToEdit={editingUser}
+        roles={rolesApi}
+        areas={areasApi} // Pasar las áreas al diálogo
+        onUpdateUser={async (userId, data) => {
+          // Actualizar formData antes de llamar a handleSaveUser
+          // Esto es crucial porque handleSaveUser lee de formData
+          setFormData({
+              ...formData, // Mantener otros datos si los hubiera
+              name: data.nombre,
+              email: data.email,
+              selectedRoleIdForm: data.rol_id.toString(),
+              area_id: data.area_id,
+              status: data.estado,
+              password: data.password || '', // Incluir contraseña si existe
+          });
+          // Llamar a handleSaveUser en modo edición.
+          // Usamos un pequeño delay para asegurar que el estado formData se actualice antes de llamar a handleSaveUser
+          await new Promise(resolve => setTimeout(resolve, 0));
+          return handleSaveUser(true);
+        }}
+      />
 
       {/* Diálogo Eliminar Usuario */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

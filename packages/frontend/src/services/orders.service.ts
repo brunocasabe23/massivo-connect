@@ -42,7 +42,7 @@ export async function getUserPurchaseOrders(filters: PurchaseOrderFilters = {}):
   }
   
   const queryString = queryParams.toString();
-  const endpoint = `/orders/me${queryString ? `?${queryString}` : ''}`;
+  const endpoint = `/orders${queryString ? `?${queryString}` : ''}`; // Cambiado de /orders/me a /orders
   
   return await callApi(endpoint);
 }

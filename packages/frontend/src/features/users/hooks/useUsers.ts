@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { callApi } from "@/services/api";
-import { User, Role, Permission, PermissionCategory, UserFilters } from "../types";
-
+import { User, Role, Permission, PermissionCategory, UserFilters, Area } from "../types"; // Añadir Area
 export function useUsers() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
@@ -12,6 +11,7 @@ export function useUsers() {
   const [activeTab, setActiveTab] = useState("todos");
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [rolesApi, setRolesApi] = useState<Role[]>([]);
+  const [areasApi, setAreasApi] = useState<Area[]>([]); // Añadir estado para áreas
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allPermissionsGrouped, setAllPermissionsGrouped] = useState<PermissionCategory[]>([]);
@@ -28,16 +28,18 @@ export function useUsers() {
     setLoadingAllPermissions(true);
     setError(null);
     try {
-      // Obtener usuarios, roles y TODOS los permisos en paralelo
-      const [usersResponse, rolesResponse, allPermissionsResponse] = await Promise.all([
+      // Obtener usuarios, roles, TODOS los permisos y áreas en paralelo
+      const [usersResponse, rolesResponse, allPermissionsResponse, areasResponse] = await Promise.all([
         callApi('/admin/users'),
         callApi('/admin/roles'),
-        callApi('/admin/permissions')
+        callApi('/admin/permissions'),
+        callApi('/areas') // Añadir llamada para obtener áreas
       ]);
 
       // Procesar usuarios y roles
       setUsuarios(Array.isArray(usersResponse) ? usersResponse : (usersResponse?.users && Array.isArray(usersResponse.users)) ? usersResponse.users : []);
       setRolesApi(Array.isArray(rolesResponse) ? rolesResponse : (rolesResponse?.roles && Array.isArray(rolesResponse.roles)) ? rolesResponse.roles : []);
+      setAreasApi(Array.isArray(areasResponse) ? areasResponse : []); // Guardar áreas en el estado
 
       // Procesar y agrupar todos los permisos
       const allPermissions: Permission[] = Array.isArray(allPermissionsResponse) ? allPermissionsResponse : [];
@@ -292,6 +294,47 @@ export function useUsers() {
     }
   };
 
+  // Función para actualizar los datos de un usuario
+  const updateUser = async (userId: string, userData: any): Promise<boolean> => {
+    try {
+      const savedUser = await callApi(`/admin/users/${userId}`, {
+        method: 'PUT',
+        data: userData,
+      });
+
+      // Actualizar la lista de usuarios localmente
+      setUsuarios(prevUsuarios =>
+        prevUsuarios.map(user =>
+          user.id === userId
+            ? {
+                ...user, // Mantener datos existentes que no se actualizan (como createdAt)
+                name: savedUser.name, // Usar datos devueltos por la API
+                email: savedUser.email,
+                role: savedUser.role,
+                rol_id: savedUser.rol_id,
+                status: savedUser.status,
+                area_id: savedUser.area_id,
+                area_nombre: savedUser.area_nombre,
+                avatar: savedUser.avatar, // Actualizar avatar si la API lo devuelve
+              }
+            : user
+        )
+      );
+
+      // El toast de éxito se mostrará desde el diálogo
+      return true;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido al actualizar usuario';
+      toast({
+        title: "Error al actualizar usuario",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      console.error(`Error updating user ${userId}:`, err);
+      return false;
+    }
+  };
+
   return {
     // Estado
     loading,
@@ -299,6 +342,7 @@ export function useUsers() {
     usuarios,
     filteredUsers,
     rolesApi,
+    areasApi, // Exponer áreas
     searchTerm,
     filterRole,
     filterStatus,
@@ -321,6 +365,7 @@ export function useUsers() {
     fetchRolePermissions,
     fetchUserDirectPermissions,
     updateUserDirectPermissions,
-    toggleUserStatus
+    toggleUserStatus,
+    updateUser // Exponer nueva función
   };
 }

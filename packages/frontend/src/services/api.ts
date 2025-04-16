@@ -25,32 +25,43 @@ const getToken = (): string | null => {
  */
 export const callApi = async (endpoint: string, options: ApiCallOptions = {}): Promise<any> => {
   const url = `${API_BASE_URL}${endpoint}`;
-  const token = getToken(); 
+  const token = getToken();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers as Record<string, string>, 
+    ...options.headers as Record<string, string>,
   };
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`; 
+    headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   // Crear config base sin data ni headers de options, ya que los manejamos explícitamente
   const { data, headers: optionHeaders, ...restOptions } = options;
 
   const config: RequestInit = {
-    method: options.method || (data ? 'POST' : 'GET'), 
-    headers: headers, 
+    method: options.method || (data ? 'POST' : 'GET'),
+    headers: headers,
     ...restOptions, // Usar el resto de las opciones pasadas
   };
 
   // Añadir body si se proporciona data
   if (data) {
     if (config.method && !['GET', 'HEAD'].includes(config.method.toUpperCase())) {
-       config.body = JSON.stringify(data);
+      // Si es FormData, no lo convertimos a JSON y quitamos el Content-Type para que el navegador lo establezca
+      if (data instanceof FormData) {
+        config.body = data;
+        delete headers['Content-Type']; // Permitir que el navegador establezca el boundary correcto
+      } else {
+        config.body = JSON.stringify(data);
+      }
     } else if (!config.method) { // Si el método es implícito (POST por tener data)
-       config.body = JSON.stringify(data);
+      if (data instanceof FormData) {
+        config.body = data;
+        delete headers['Content-Type'];
+      } else {
+        config.body = JSON.stringify(data);
+      }
     }
   }
   // No es necesario 'delete config.data' porque ya no está en restOptions
@@ -58,14 +69,14 @@ export const callApi = async (endpoint: string, options: ApiCallOptions = {}): P
   try {
     const response = await fetch(url, config);
 
-    const responseData = await response.json().catch(() => ({})); 
+    const responseData = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       const errorMessage = responseData.message || response.statusText || `Error HTTP ${response.status}`;
       throw new Error(errorMessage);
     }
 
-    return responseData; 
+    return responseData;
 
   } catch (error) {
     console.error(`Error llamando a API ${endpoint}:`, error);

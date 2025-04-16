@@ -17,6 +17,7 @@ import {
   Activity,
   LayoutDashboard, // Icono para Centro de Compras
   Store, // Icono para Proveedores
+  Package, // Icono para Productos
 } from "lucide-react";
 
 import { NotificationsPopover } from "@/components/notifications/NotificationsPopover"; // Importar componente de notificaciones
@@ -165,7 +166,7 @@ function MainSidebar() {
   const [presupuestosOpen, setPresupuestosOpen] = React.useState(pathname.includes("/codigos-presupuestales") || pathname.includes("/dashboard/presupuestos")); // Ajustado para incluir dashboard
   const [adminOpen, setAdminOpen] = React.useState(pathname.includes("/admin"));
   const [comprasOpen, setComprasOpen] = React.useState(pathname.includes("/compras")); // Estado para submenú Compras
-  
+
   // Obtener el tema actual del contexto de autenticación
   const { theme } = useAuth();
 
@@ -210,37 +211,61 @@ function MainSidebar() {
                 <SidebarMenuSub>
                   {/* TODO: Añadir permiso específico para Solicitudes si es necesario */}
                   <SidebarMenuSubItem>
-                    {/* Enlace a /compras (que ahora muestra Solicitudes por defecto) o /compras/solicitudes */}
-                    <Link to="/compras/solicitudes"> {/* Puede seguir apuntando a la ruta explícita */}
-                      <SidebarMenuSubButton isActive={pathname === "/compras" || pathname === "/compras/solicitudes"}> {/* Activo en la ruta base o la explícita */}
-                        <ListIcon className="h-4 w-4" /> {/* Icono para Solicitudes */}
+                    <SidebarMenuSubButton 
+                      asChild
+                      isActive={pathname === "/compras" || pathname === "/compras/solicitudes"}
+                    >
+                      <Link to="/compras/solicitudes">
+                        <ListIcon className="h-4 w-4" />
                         <span>Solicitudes</span>
-                      </SidebarMenuSubButton>
-                    </Link>
+                      </Link>
+                    </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
 
                   {/* Enlace Proveedores (Condicional dentro de Compras) */}
                   {hasPermission('ver_proveedores') && (
                     <SidebarMenuSubItem>
-                      <Link to="/compras/proveedores"> {/* Ruta anidada */}
-                        <SidebarMenuSubButton isActive={pathname === "/compras/proveedores"}> {/* Ruta anidada */}
-                          <Store className="h-4 w-4" /> {/* Icono Proveedores */}
+                      <SidebarMenuSubButton 
+                        asChild
+                        isActive={pathname === "/compras/proveedores"}
+                      >
+                        <Link to="/compras/proveedores">
+                          <Store className="h-4 w-4" />
                           <span>Proveedores</span>
-                        </SidebarMenuSubButton>
-                      </Link>
+                        </Link>
+                      </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   )}
 
                   {/* Enlace Centro de Compras (Condicional dentro de Compras) */}
                   {hasPermission('ver_centro_compras') && (
-                     <SidebarMenuSubItem>
-                       <Link to="/compras/centro-compras"> {/* Ruta anidada */}
-                         <SidebarMenuSubButton isActive={pathname === "/compras/centro-compras"}> {/* Ruta anidada */}
-                           <LayoutDashboard className="h-4 w-4" /> {/* Icono Centro de Compras */}
-                           <span>Centro de Compras</span>
-                         </SidebarMenuSubButton>
-                       </Link>
-                     </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton 
+                        asChild
+                        isActive={pathname === "/compras/centro-compras"}
+                      >
+                        <Link to="/compras/centro-compras">
+                          <LayoutDashboard className="h-4 w-4" />
+                          <span>Centro de Compras</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  )}
+                  {/* Los enlaces originales de Centro de Compras y Proveedores se eliminan de aquí */}
+        
+                  {/* Enlace Productos (Condicional) */}
+                  {hasPermission('ver_productos') && (
+                    <SidebarMenuItem>
+                       <SidebarMenuButton
+                         asChild // Usar Link como elemento principal
+                         isActive={pathname === "/productos"}
+                       >
+                         <Link to="/productos">
+                           <Package className="h-5 w-5" />
+                           <span>Productos</span>
+                         </Link>
+                       </SidebarMenuButton>
+                    </SidebarMenuItem>
                   )}
                 </SidebarMenuSub>
               )}

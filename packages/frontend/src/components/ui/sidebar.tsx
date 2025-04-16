@@ -735,14 +735,8 @@ const SidebarMenuSubButton = React.forwardRef<
     size?: "sm" | "md"
     isActive?: boolean
   }
->(({ asChild = false, size = "md", isActive, className, children, ...props }, ref) => {
-  // Si asChild es true, asegurarse de que children sea un único elemento React
-  if (asChild && React.Children.count(children) !== 1) {
-    console.warn('SidebarMenuSubButton con asChild=true debe tener exactamente un hijo React');
-    asChild = false; // Fallback a 'a' si no hay exactamente un hijo
-  }
-
-  const Comp = asChild ? Slot : "a"
+>(({ className, asChild = false, size = "md", isActive = false, children, ...props }, ref) => {
+  const Comp = asChild ? Slot : "a";
 
   return (
     <Comp
@@ -762,8 +756,8 @@ const SidebarMenuSubButton = React.forwardRef<
     >
       {children}
     </Comp>
-  )
-})
+  );
+});
 SidebarMenuSubButton.displayName = "SidebarMenuSubButton"
 
 export {

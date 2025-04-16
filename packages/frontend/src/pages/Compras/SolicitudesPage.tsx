@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { OrderDetailDialog } from "@/components/orders/OrderDetailDialog";
 import { getUserBudgetCodes, getUserAreas, UserBudgetCode, UserArea } from "@/services/user-budget.service";
 
-// Interfaz para Orden de Compra
+// Interfaz para Orden de Compra (actualizada para usar proveedor_id)
 interface OrdenCompra {
   id: number;
   fecha_creacion: string;
@@ -31,7 +31,8 @@ interface OrdenCompra {
   laboratorio?: string;
   cp_id: number;
   codigo_presupuestal?: string;
-  proveedor?: string;
+  proveedor_id?: number; // Cambiado de proveedor (string) a proveedor_id (number)
+  proveedor_nombre?: string; // Nombre del proveedor (obtenido del backend)
   producto?: string;
   descripcion: string;
   cantidad?: number;
@@ -42,7 +43,8 @@ interface OrdenCompra {
   solicitante?: string;
 }
 
-type OrdenCompraForm = Partial<Omit<OrdenCompra, 'id' | 'fecha_creacion' | 'codigo_presupuestal' | 'solicitante'>> & { estado?: string }; // Add estado here
+// Actualizar tipo de formulario para usar proveedor_id
+type OrdenCompraForm = Partial<Omit<OrdenCompra, 'id' | 'fecha_creacion' | 'codigo_presupuestal' | 'solicitante' | 'proveedor_nombre'>> & { estado?: string };
 
 // Renombrado de ComprasPage a SolicitudesPage
 export default function SolicitudesPage() {
@@ -59,7 +61,7 @@ export default function SolicitudesPage() {
 
   // Datos para Selects (ejemplo, obtener de API si es necesario)
   const [codigosPresupuestales, setCodigosPresupuestales] = useState<UserBudgetCode[]>([]);
-  const [proveedores, /* setProveedores */] = useState<string[]>(["TechSupplies Inc.", "Office Depot", "Microsoft", "Muebles Modernos", "Catering Deluxe"]);
+  const [proveedores, setProveedores] = useState<{id: number, nombre: string}[]>([]); // Estado para lista de proveedores {id, nombre}
   const [productos, /* setProductos */] = useState<string[]>(["Equipos de cómputo", "Material de oficina", "Licencias de software", "Mobiliario de oficina", "Servicios de catering"]);
   const [areas, setAreas] = useState<UserArea[]>([]); // State for areas from DB
 
@@ -105,6 +107,7 @@ export default function SolicitudesPage() {
     fetchOrders();
     fetchCodigosPresupuestales();
     fetchAreas(); // Fetch areas on component mount
+    fetchProveedoresSimple(); // Cargar proveedores para el select
   }, []);
 
   const handleSave = async () => {
@@ -139,6 +142,17 @@ export default function SolicitudesPage() {
       console.error("Error al eliminar orden:", error);
       toast({ title: "Error", description: "No se pudo eliminar la orden.", variant: "destructive" });
     }
+  };
+
+  // Cargar lista simple de proveedores
+  const fetchProveedoresSimple = async () => {
+      try {
+          const data = await callApi('/suppliers/simple');
+          setProveedores(data || []);
+      } catch (error) {
+          console.error("Error fetching simple suppliers list:", error);
+          toast({ title: "Error", description: "No se pudo cargar la lista de proveedores.", variant: "destructive" });
+      }
   };
 
    // Unified handleChange for all input types - Moved outside handleUpdateStatus
@@ -185,8 +199,10 @@ export default function SolicitudesPage() {
 
   const openEditDialog = (order: OrdenCompra) => {
     setEditingOrder(order);
+    // Asegurarse de que formData use proveedor_id al editar
     setFormData({
         ...order,
+        proveedor_id: order.proveedor_id, // Usar proveedor_id
         cantidad: Number(order.cantidad || 1),
         precio_unitario: Number(order.precio_unitario || 0),
         monto: Number(order.monto || 0),
@@ -213,7 +229,7 @@ export default function SolicitudesPage() {
         (order) =>
           order.id.toString().includes(searchTerm) ||
           (order.producto || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (order.proveedor || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (order.proveedor_nombre || "").toLowerCase().includes(searchTerm.toLowerCase()) || // Buscar por nombre de proveedor
           (order.solicitante || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
           (order.codigo_presupuestal || "").toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -444,14 +460,15 @@ export default function SolicitudesPage() {
               <h3 className="font-medium text-sm">DATOS DE PRODUCTO</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="proveedor">Proveedor</Label>
-                   <Select value={formData.proveedor} onValueChange={(value) => setFormData({...formData, proveedor: value})}>
+                  <Label htmlFor="proveedor_id">Proveedor</Label>
+                   {/* Usar Select con proveedor_id como value y mostrar nombre */}
+                   <Select value={formData.proveedor_id?.toString()} onValueChange={(value) => setFormData({...formData, proveedor_id: value ? parseInt(value) : undefined})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccione Proveedor" />
                       </SelectTrigger>
                       <SelectContent>
                         {proveedores.map(prov => (
-                          <SelectItem key={prov} value={prov}>{prov}</SelectItem>
+                          <SelectItem key={prov.id} value={prov.id.toString()}>{prov.nombre}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

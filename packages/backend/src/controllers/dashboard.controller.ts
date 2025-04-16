@@ -523,6 +523,7 @@ export const getUpcomingDeliveries = async (req: Request, res: Response): Promis
   try {
     client = await pool.connect();
 
+    // Actualizar consulta para usar proveedor_id y obtener nombre
     const query = `
       SELECT
         oc.id,
@@ -530,13 +531,15 @@ export const getUpcomingDeliveries = async (req: Request, res: Response): Promis
         oc.fecha_creacion,
         oc.fecha_entrega,
         oc.estado,
-        oc.proveedor,
+        oc.proveedor_id, -- Seleccionar ID
+        p.nombre as proveedor_nombre, -- Obtener nombre del proveedor
         oc.monto,
         oc.moneda,
         oc.prioridad,
         u.nombre as solicitante
       FROM ordenes_compra oc
       JOIN usuarios u ON oc.usuario_id = u.id
+      LEFT JOIN proveedores p ON oc.proveedor_id = p.id -- Unir con proveedores
       WHERE oc.estado = 'En proceso' AND oc.fecha_entrega IS NOT NULL
       ORDER BY oc.fecha_entrega ASC
       LIMIT $1;
